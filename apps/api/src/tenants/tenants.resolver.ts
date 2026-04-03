@@ -49,4 +49,26 @@ export class TenantsResolver {
         : null,
     };
   }
+
+  @Mutation(() => TenantType)
+  async activateWhatsAppSandbox(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<TenantType> {
+    const tenant = await this.tenantsService.activateWhatsAppSandbox(user.tenantId);
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      status: tenant.status,
+      createdAt: tenant.createdAt,
+      whatsappConfig: tenant.whatsappConfig
+        ? {
+            isActive: tenant.whatsappConfig.isActive,
+            displayPhoneNumber: tenant.whatsappConfig.displayPhoneNumber,
+            phoneVerificationStatus: tenant.whatsappConfig.phoneVerificationStatus,
+            connectedAt: tenant.whatsappConfig.connectedAt,
+          }
+        : null,
+    };
+  }
 }

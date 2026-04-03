@@ -32,4 +32,35 @@ export class TenantsService {
       data: { status: 'ACTIVE' },
     });
   }
+
+  async activateWhatsAppSandbox(tenantId: string) {
+    const sandboxNumber = '+14155238886';
+
+    await this.prisma.db.whatsAppConfig.upsert({
+      where: { tenantId },
+      create: {
+        tenantId,
+        wabaId: 'twilio-sandbox',
+        phoneNumberId: '14155238886',
+        displayPhoneNumber: sandboxNumber,
+        encryptedSystemToken: 'sandbox',
+        tokenIv: 'sandbox',
+        tokenAuthTag: 'sandbox',
+        webhookVerifyToken: 'sandbox',
+        isActive: true,
+        connectedAt: new Date(),
+        phoneVerificationStatus: 'VERIFIED',
+      },
+      update: {
+        isActive: true,
+        connectedAt: new Date(),
+      },
+    });
+
+    return this.prisma.db.tenant.update({
+      where: { id: tenantId },
+      data: { status: 'ACTIVE' },
+      include: { whatsappConfig: true },
+    });
+  }
 }

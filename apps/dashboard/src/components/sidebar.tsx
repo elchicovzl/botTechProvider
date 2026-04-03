@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { MessageSquare, Bot, Settings, LogOut } from 'lucide-react';
+import { MessageSquare, Bot, Settings, LogOut, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { clearTokens } from '@/lib/auth';
 
 const navItems = [
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
+  { href: '/onboarding', label: 'WhatsApp', icon: MessageCircle },
   { href: '/bots', label: 'Bots', icon: Bot },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

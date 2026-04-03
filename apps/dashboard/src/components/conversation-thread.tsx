@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
-import { MESSAGES_QUERY, UPDATE_CONVERSATION_STATUS_MUTATION } from '@/graphql/conversations';
+import {
+  MESSAGES_QUERY,
+  UPDATE_CONVERSATION_STATUS_MUTATION,
+  SEND_MESSAGE_MUTATION,
+} from '@/graphql/conversations';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CheckCheck, Check, Clock, AlertCircle } from 'lucide-react';
@@ -39,11 +43,23 @@ interface UpdateStatusData {
   };
 }
 
+interface SendMessageData {
+  sendMessage: {
+    id: string;
+    direction: string;
+    type: string;
+    content: string;
+    status: string;
+    createdAt: string;
+  };
+}
+
 interface ConversationThreadProps {
   conversationId: string;
   contactName: string | null;
   contactPhone: string;
   status: string;
+  isSessionOpen: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -83,10 +99,12 @@ export function ConversationThread({
   contactName,
   contactPhone,
   status,
+  isSessionOpen,
 }: ConversationThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [messageInput, setMessageInput] = useState('');
 
-  const { data, loading } = useQuery<MessagesData>(MESSAGES_QUERY, {
+  const { data, loading, refetch } = useQuery<MessagesData>(MESSAGES_QUERY, {
     variables: { conversationId, first: 50 },
     fetchPolicy: 'cache-and-network',
   });
@@ -94,6 +112,10 @@ export function ConversationThread({
   const [updateStatus, { loading: updating }] = useMutation<UpdateStatusData>(
     UPDATE_CONVERSATION_STATUS_MUTATION,
     { refetchQueries: ['Conversations'] },
+  );
+
+  const [sendMessage, { loading: sendLoading }] = useMutation<SendMessageData>(
+    SEND_MESSAGE_MUTATION,
   );
 
   const messages = data?.messages?.edges ?? [];
@@ -107,6 +129,14 @@ export function ConversationThread({
 
   const handleStatusChange = (newStatus: string) => {
     updateStatus({ variables: { conversationId, status: newStatus } });
+  };
+
+  const handleSend = async () => {
+    const trimmed = messageInput.trim();
+    if (!trimmed || sendLoading) return;
+    await sendMessage({ variables: { conversationId, content: trimmed } });
+    setMessageInput('');
+    refetch();
   };
 
   return (
@@ -217,11 +247,29 @@ export function ConversationThread({
       </div>
 
       {/* ── Footer ── */}
-      <div className="border-t px-4 py-3">
-        <p className="text-center text-xs text-muted-foreground">
-          Connect WhatsApp to send messages
-        </p>
-      </div>
+      {isSessionOpen ? (
+        <div className="border-t p-4 flex gap-2">
+          <input
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder="Type a message..."
+            className="flex-1 rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <Button
+            onClick={handleSend}
+            disabled={sendLoading || !messageInput.trim()}
+          >
+            Send
+          </Button>
+        </div>
+      ) : (
+        <div className="border-t px-4 py-3">
+          <p className="text-center text-xs text-muted-foreground">
+            Session expired — only template messages allowed
+          </p>
+        </div>
+      )}
     </div>
   );
 }

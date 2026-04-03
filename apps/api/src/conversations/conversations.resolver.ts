@@ -1,16 +1,21 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { ConversationsService } from './conversations.service';
+import { WhatsAppSenderService } from '../whatsapp/whatsapp-sender.service';
 import { CurrentUser, JwtPayload } from '../common/decorators';
 import {
   ConversationConnectionType,
   ConversationType,
   MessageConnectionType,
+  MessageType,
   SendMessageInputType,
 } from './dto';
 
 @Resolver(() => ConversationType)
 export class ConversationsResolver {
-  constructor(private readonly conversationsService: ConversationsService) {}
+  constructor(
+    private readonly conversationsService: ConversationsService,
+    private readonly whatsappSender: WhatsAppSenderService,
+  ) {}
 
   @Query(() => ConversationConnectionType)
   async conversations(
@@ -68,6 +73,21 @@ export class ConversationsResolver {
         ? conv.sessionWindowExpiresAt > new Date()
         : false,
     } as unknown as ConversationType;
+  }
+
+  @Mutation(() => MessageType)
+  async sendMessage(
+    @CurrentUser() user: JwtPayload,
+    @Args('conversationId') conversationId: string,
+    @Args('content') content: string,
+  ): Promise<MessageType> {
+    const result = await this.whatsappSender.queueMessage(
+      user.tenantId,
+      conversationId,
+      content,
+    );
+    const message = await this.conversationsService.getMessageById(user.tenantId, result.messageId);
+    return message as any;
   }
 }
 

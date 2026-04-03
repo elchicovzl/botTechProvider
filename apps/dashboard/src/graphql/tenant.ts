@@ -17,3 +17,17 @@ export const MY_TENANT_QUERY = gql`
     }
   }
 `;
+
+export const ACTIVATE_WHATSAPP_SANDBOX_MUTATION = gql`
+  mutation ActivateWhatsAppSandbox {
+    activateWhatsAppSandbox {
+      id
+      name
+      status
+      whatsappConfig {
+        isActive
+        displayPhoneNumber
+      }
+    }
+  }
+`;

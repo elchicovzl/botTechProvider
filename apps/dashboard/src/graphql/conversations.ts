@@ -69,3 +69,16 @@ export const UPDATE_CONVERSATION_STATUS_MUTATION = gql`
     }
   }
 `;
+
+export const SEND_MESSAGE_MUTATION = gql`
+  mutation SendMessage($conversationId: String!, $content: String!) {
+    sendMessage(conversationId: $conversationId, content: $content) {
+      id
+      direction
+      type
+      content
+      status
+      createdAt
+    }
+  }
+`;

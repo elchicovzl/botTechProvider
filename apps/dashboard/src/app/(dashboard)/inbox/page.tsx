@@ -189,6 +189,7 @@ export default function InboxPage() {
             contactName={selectedConv.waContactName}
             contactPhone={selectedConv.waContactPhone}
             status={selectedConv.status}
+            isSessionOpen={selectedConv.isSessionOpen}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">

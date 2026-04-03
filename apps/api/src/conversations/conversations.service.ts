@@ -117,6 +117,12 @@ export class ConversationsService {
     };
   }
 
+  async getMessageById(tenantId: string, messageId: string) {
+    return this.prisma.db.message.findFirst({
+      where: { id: messageId, tenantId },
+    });
+  }
+
   async updateStatus(
     tenantId: string,
     conversationId: string,
