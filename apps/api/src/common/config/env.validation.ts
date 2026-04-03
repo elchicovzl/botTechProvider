@@ -18,10 +18,15 @@ export const envSchema = z.object({
   // Token Encryption (32-byte hex = 64 hex chars)
   TOKEN_ENCRYPTION_KEY: z.string().length(64),
 
-  // Meta / Facebook
-  META_APP_ID: z.string().min(1),
-  META_APP_SECRET: z.string().min(1),
-  META_WEBHOOK_VERIFY_TOKEN: z.string().min(1),
+  // Meta / Facebook (optional — kept for compatibility / future re-use)
+  META_APP_ID: z.string().min(1).optional().default(''),
+  META_APP_SECRET: z.string().min(1).optional().default(''),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional().default(''),
+
+  // YCloud BSP
+  YCLOUD_API_KEY: z.string().min(1),
+  YCLOUD_WEBHOOK_SECRET: z.string().min(1),
+  YCLOUD_FROM_NUMBER: z.string().min(1),
 
   // Ollama
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),

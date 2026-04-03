@@ -7,44 +7,42 @@ import { WhatsAppConfigService } from '../whatsapp-config.service';
 import { QUEUES } from '../../queue';
 import { BotEngineService } from '../../bots';
 
-interface WaContact {
-  profile: { name: string };
-  wa_id: string;
-}
-
-interface WaMessage {
+interface YCloudInboundMessage {
   id: string;
+  wabaId: string;
   from: string;
-  timestamp: string;
+  to: string;
+  customerProfile?: { name: string };
+  sendTime: string;
   type: string;
   text?: { body: string };
-  image?: { id: string; mime_type: string; caption?: string };
-  document?: { id: string; mime_type: string; filename?: string; caption?: string };
-  audio?: { id: string; mime_type: string };
-  video?: { id: string; mime_type: string; caption?: string };
+  image?: { id: string; link?: string; caption?: string };
+  document?: { id: string; link?: string; filename?: string; caption?: string };
+  audio?: { id: string; link?: string };
+  video?: { id: string; link?: string; caption?: string };
 }
 
-interface WaStatus {
-  id: string;
-  status: string;
-  timestamp: string;
-  recipient_id: string;
-}
-
-interface WebhookJobData {
-  wabaId: string;
-  entry: {
+interface YCloudInboundEvent {
+  event: {
     id: string;
-    changes: Array<{
-      value: {
-        messaging_product: string;
-        metadata: { display_phone_number: string; phone_number_id: string };
-        contacts?: WaContact[];
-        messages?: WaMessage[];
-        statuses?: WaStatus[];
-      };
-      field: string;
-    }>;
+    type: 'whatsapp.inbound_message.received';
+    whatsappInboundMessage: YCloudInboundMessage;
+  };
+  receivedAt: string;
+}
+
+interface YCloudStatusEvent {
+  event: {
+    id: string;
+    type: 'whatsapp.message.updated';
+    whatsappMessage: {
+      id: string;
+      wamid?: string;
+      status: string;
+      sendTime?: string;
+      totalPrice?: string;
+      currency?: string;
+    };
   };
   receivedAt: string;
 }
@@ -62,8 +60,17 @@ export class WebhookProcessProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<WebhookJobData>): Promise<void> {
-    const { wabaId, entry } = job.data;
+  async process(job: Job): Promise<void> {
+    if (job.name === 'process-inbound') {
+      await this.processInbound(job.data as YCloudInboundEvent);
+    } else if (job.name === 'process-status') {
+      await this.processStatus(job.data as YCloudStatusEvent);
+    }
+  }
+
+  private async processInbound(data: YCloudInboundEvent): Promise<void> {
+    const msg = data.event.whatsappInboundMessage;
+    const wabaId = msg.wabaId;
 
     // Look up tenant by WABA ID
     const config = await this.whatsappConfig.findTenantByWabaId(wabaId);
@@ -73,38 +80,12 @@ export class WebhookProcessProcessor extends WorkerHost {
     }
 
     const tenantId = config.tenantId;
-
-    for (const change of entry.changes) {
-      if (change.field !== 'messages') continue;
-      const value = change.value;
-
-      // Process inbound messages
-      if (value.messages) {
-        for (const msg of value.messages) {
-          await this.processInboundMessage(tenantId, msg, value.contacts?.[0]);
-        }
-      }
-
-      // Process status updates
-      if (value.statuses) {
-        for (const status of value.statuses) {
-          await this.processStatusUpdate(status);
-        }
-      }
-    }
-  }
-
-  private async processInboundMessage(
-    tenantId: string,
-    msg: WaMessage,
-    contact?: WaContact,
-  ): Promise<void> {
     const waContactId = msg.from;
     const waContactPhone = msg.from;
-    const waContactName = contact?.profile?.name ?? null;
+    const waContactName = msg.customerProfile?.name ?? null;
     const waMessageId = msg.id;
 
-    // Idempotency check: if message already exists, skip
+    // Idempotency check
     const existing = await this.prisma.db.message.findFirst({
       where: { waMessageId },
     });
@@ -113,15 +94,15 @@ export class WebhookProcessProcessor extends WorkerHost {
       return;
     }
 
-    // Upsert conversation
-    const now = new Date();
-    const sessionExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
-
     // Find active bot for this tenant
     const activeBot = await this.prisma.db.bot.findFirst({
       where: { tenantId, isActive: true, deletedAt: null },
     });
 
+    const now = new Date();
+    const sessionExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
+
+    // Upsert conversation
     let conversation = await this.prisma.db.conversation.findFirst({
       where: { tenantId, waContactId },
     });
@@ -140,13 +121,12 @@ export class WebhookProcessProcessor extends WorkerHost {
         },
       });
     } else {
-      // Update existing conversation
       const updateData: Record<string, unknown> = {
         sessionWindowExpiresAt: sessionExpiry,
         lastInboundAt: now,
       };
 
-      // If conversation was RESOLVED, re-open it
+      // Re-open resolved conversations
       if (conversation.status === 'RESOLVED') {
         updateData.status = activeBot ? 'BOT' : 'OPEN';
         updateData.botId = activeBot?.id ?? null;
@@ -162,10 +142,10 @@ export class WebhookProcessProcessor extends WorkerHost {
       });
     }
 
-    // Determine message type and content
-    const { type, content, mediaUrl } = this.extractMessageContent(msg);
+    // Extract content
+    const { type, content, mediaUrl } = this.extractContent(msg);
 
-    // Create message
+    // Create message record
     await this.prisma.db.message.create({
       data: {
         tenantId,
@@ -176,7 +156,7 @@ export class WebhookProcessProcessor extends WorkerHost {
         content,
         mediaUrl,
         status: 'DELIVERED',
-        createdAt: new Date(parseInt(msg.timestamp) * 1000),
+        createdAt: msg.sendTime ? new Date(msg.sendTime) : now,
       },
     });
 
@@ -189,14 +169,18 @@ export class WebhookProcessProcessor extends WorkerHost {
       try {
         await this.botEngine.processMessage(tenantId, conversation.id, content ?? '');
       } catch (error) {
-        this.logger.error(`Bot reply failed for conversation ${conversation.id}: ${error}`);
-        // Don't fail the webhook job — message was already stored
+        this.logger.error(
+          `Bot reply failed for conversation ${conversation.id}: ${error}`,
+        );
+        // Don't fail the job — message was already stored
       }
     }
   }
 
-  private async processStatusUpdate(status: WaStatus): Promise<void> {
-    const { id: waMessageId, status: newStatus } = status;
+  private async processStatus(data: YCloudStatusEvent): Promise<void> {
+    const msg = data.event.whatsappMessage;
+    // YCloud sends wamid (WhatsApp's native message ID) or its own id
+    const waMessageId = msg.wamid ?? msg.id;
 
     const statusMap: Record<string, string> = {
       sent: 'SENT',
@@ -205,22 +189,13 @@ export class WebhookProcessProcessor extends WorkerHost {
       failed: 'FAILED',
     };
 
-    const mappedStatus = statusMap[newStatus];
+    const mappedStatus = statusMap[msg.status];
     if (!mappedStatus) return;
 
-    const timestampField =
-      newStatus === 'sent'
-        ? 'sentAt'
-        : newStatus === 'delivered'
-          ? 'deliveredAt'
-          : newStatus === 'read'
-            ? 'readAt'
-            : undefined;
-
     const updateData: Record<string, unknown> = { status: mappedStatus };
-    if (timestampField) {
-      updateData[timestampField] = new Date(parseInt(status.timestamp) * 1000);
-    }
+    if (msg.status === 'sent') updateData.sentAt = new Date();
+    if (msg.status === 'delivered') updateData.deliveredAt = new Date();
+    if (msg.status === 'read') updateData.readAt = new Date();
 
     try {
       await this.prisma.db.message.update({
@@ -228,36 +203,45 @@ export class WebhookProcessProcessor extends WorkerHost {
         data: updateData,
       });
     } catch {
-      // Message not found — might be from before our system or a different tenant
       this.logger.debug(`Status update for unknown message ${waMessageId}`);
     }
   }
 
-  private extractMessageContent(
-    msg: WaMessage,
-  ): { type: MessageType; content: string | null; mediaUrl: string | null } {
+  private extractContent(msg: YCloudInboundMessage): {
+    type: MessageType;
+    content: string | null;
+    mediaUrl: string | null;
+  } {
     switch (msg.type) {
       case 'text':
-        return { type: MessageType.TEXT, content: msg.text?.body ?? null, mediaUrl: null };
+        return {
+          type: MessageType.TEXT,
+          content: msg.text?.body ?? null,
+          mediaUrl: null,
+        };
       case 'image':
         return {
           type: MessageType.IMAGE,
           content: msg.image?.caption ?? null,
-          mediaUrl: msg.image?.id ?? null,
+          mediaUrl: msg.image?.link ?? msg.image?.id ?? null,
         };
       case 'document':
         return {
           type: MessageType.DOCUMENT,
           content: msg.document?.caption ?? msg.document?.filename ?? null,
-          mediaUrl: msg.document?.id ?? null,
+          mediaUrl: msg.document?.link ?? msg.document?.id ?? null,
         };
       case 'audio':
-        return { type: MessageType.AUDIO, content: null, mediaUrl: msg.audio?.id ?? null };
+        return {
+          type: MessageType.AUDIO,
+          content: null,
+          mediaUrl: msg.audio?.link ?? msg.audio?.id ?? null,
+        };
       case 'video':
         return {
           type: MessageType.VIDEO,
           content: msg.video?.caption ?? null,
-          mediaUrl: msg.video?.id ?? null,
+          mediaUrl: msg.video?.link ?? msg.video?.id ?? null,
         };
       default:
         return { type: MessageType.UNKNOWN, content: null, mediaUrl: null };

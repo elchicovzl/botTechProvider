@@ -1,8 +1,8 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma';
-import { WhatsAppConfigService } from './whatsapp-config.service';
 import { QUEUES, JOB_OPTIONS } from '../queue';
 
 export interface SendMessageData {
@@ -18,14 +18,18 @@ export interface SendMessageData {
 
 @Injectable()
 export class WhatsAppSenderService {
+  private readonly fromNumber: string;
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly whatsappConfig: WhatsAppConfigService,
+    private readonly configService: ConfigService,
     @InjectQueue(QUEUES.MESSAGE_SEND) private readonly sendQueue: Queue,
-  ) {}
+  ) {
+    this.fromNumber = this.configService.getOrThrow('YCLOUD_FROM_NUMBER');
+  }
 
   /**
-   * Queue a message for sending via WhatsApp.
+   * Queue a message for sending via WhatsApp (YCloud BSP).
    * Checks session window before queuing.
    */
   async queueMessage(
@@ -53,12 +57,6 @@ export class WhatsAppSenderService {
       );
     }
 
-    // Get WhatsApp config
-    const config = await this.whatsappConfig.getConfig(tenantId);
-    if (!config || !config.isActive) {
-      throw new UnprocessableEntityException('WhatsApp not connected');
-    }
-
     // Create outbound message record
     const message = await this.prisma.db.message.create({
       data: {
@@ -72,14 +70,14 @@ export class WhatsAppSenderService {
       },
     });
 
-    // Enqueue for sending
+    // Enqueue for sending — phoneNumberId carries the YCloud from-number for traceability
     await this.sendQueue.add(
       'send-message',
       {
         messageId: message.id,
         tenantId,
         conversationId,
-        phoneNumberId: config.phoneNumberId,
+        phoneNumberId: this.fromNumber,
         recipientPhone: conversation.waContactPhone,
         type,
         content,

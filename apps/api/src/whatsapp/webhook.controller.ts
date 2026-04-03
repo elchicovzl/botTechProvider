@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Public } from '../common/decorators';
-import { MetaSignatureGuard } from './guards/meta-signature.guard';
+import { YCloudSignatureGuard } from './guards/ycloud-signature.guard';
 import { QUEUES, JOB_OPTIONS } from '../queue';
 
 @Controller('webhooks')
@@ -24,11 +24,11 @@ export class WebhookController {
     private readonly configService: ConfigService,
     @InjectQueue(QUEUES.WEBHOOK_PROCESS) private readonly webhookQueue: Queue,
   ) {
-    this.verifyToken = this.configService.getOrThrow('META_WEBHOOK_VERIFY_TOKEN');
+    this.verifyToken = this.configService.get('META_WEBHOOK_VERIFY_TOKEN') ?? '';
   }
 
   /**
-   * Webhook verification — Meta sends GET to verify the endpoint.
+   * Meta webhook verification — kept for compatibility if switching back to Meta direct.
    * Must return hub.challenge to confirm subscription.
    */
   @Get('whatsapp')
@@ -42,39 +42,41 @@ export class WebhookController {
       this.logger.log('Webhook verified successfully');
       return challenge;
     }
-    this.logger.warn(`Webhook verification failed: mode=${mode}`);
+    this.logger.warn('Webhook verification failed');
     return 'Verification failed';
   }
 
   /**
-   * Receive webhook events from Meta.
-   * Signature verified by MetaSignatureGuard.
+   * Receive webhook events from YCloud.
+   * Signature verified by YCloudSignatureGuard.
    * Payload enqueued to BullMQ for async processing.
-   * Must return 200 within 20 seconds (Meta requirement).
+   * Must return 200 quickly (YCloud requirement).
    */
   @Post('whatsapp')
   @Public()
-  @UseGuards(MetaSignatureGuard)
+  @UseGuards(YCloudSignatureGuard)
   @HttpCode(200)
   async receive(@Body() body: Record<string, any>): Promise<string> {
-    const entries = body?.entry;
-    if (!Array.isArray(entries) || entries.length === 0) {
-      return 'EVENT_RECEIVED';
-    }
+    const eventType = body?.type;
 
-    for (const entry of entries) {
-      const wabaId = entry.id;
-      if (!wabaId) continue;
-
-      await this.webhookQueue.add(
-        'process-webhook',
-        {
-          wabaId,
-          entry,
-          receivedAt: new Date().toISOString(),
-        },
-        JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
-      );
+    if (eventType === 'whatsapp.inbound_message.received') {
+      const msg = body.whatsappInboundMessage;
+      if (msg) {
+        await this.webhookQueue.add(
+          'process-inbound',
+          { event: body, receivedAt: new Date().toISOString() },
+          JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
+        );
+      }
+    } else if (eventType === 'whatsapp.message.updated') {
+      const msg = body.whatsappMessage;
+      if (msg) {
+        await this.webhookQueue.add(
+          'process-status',
+          { event: body, receivedAt: new Date().toISOString() },
+          JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
+        );
+      }
     }
 
     return 'EVENT_RECEIVED';

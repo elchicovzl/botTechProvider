@@ -1,8 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { PrismaService } from '../../prisma';
-import { WhatsAppConfigService } from '../whatsapp-config.service';
 import { QUEUES } from '../../queue';
 import { SendMessageData } from '../whatsapp-sender.service';
 
@@ -15,28 +15,27 @@ import { SendMessageData } from '../whatsapp-sender.service';
 })
 export class MessageSendProcessor extends WorkerHost {
   private readonly logger = new Logger(MessageSendProcessor.name);
-  private readonly graphApiBase = 'https://graph.facebook.com/v21.0';
+  private readonly apiKey: string;
+  private readonly fromNumber: string;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly whatsappConfig: WhatsAppConfigService,
+    private readonly configService: ConfigService,
   ) {
     super();
+    this.apiKey = this.configService.getOrThrow('YCLOUD_API_KEY');
+    this.fromNumber = this.configService.getOrThrow('YCLOUD_FROM_NUMBER');
   }
 
   async process(job: Job<SendMessageData>): Promise<void> {
-    const { messageId, tenantId, phoneNumberId, recipientPhone, type, content, mediaUrl } =
-      job.data;
-
-    const token = await this.whatsappConfig.getDecryptedToken(tenantId);
+    const { messageId, recipientPhone, type, content, mediaUrl } = job.data;
 
     const body = this.buildMessageBody(recipientPhone, type, content, mediaUrl);
 
-    const url = `${this.graphApiBase}/${phoneNumberId}/messages`;
-    const response = await fetch(url, {
+    const response = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'X-API-Key': this.apiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -46,7 +45,7 @@ export class MessageSendProcessor extends WorkerHost {
       const error = await response.text();
       const status = response.status;
 
-      // Update message as failed
+      // Mark as failed unless it's a rate-limit (BullMQ will retry via backoff)
       if (status !== 429) {
         await this.prisma.db.message.update({
           where: { id: messageId },
@@ -54,24 +53,21 @@ export class MessageSendProcessor extends WorkerHost {
         });
       }
 
-      // 429 will trigger BullMQ retry via backoff
-      throw new Error(`Meta API error ${status}: ${error}`);
+      throw new Error(`YCloud API error ${status}: ${error}`);
     }
 
-    const result = (await response.json()) as { messages?: Array<{ id: string }> };
-    const waMessageId = result?.messages?.[0]?.id;
+    const result = (await response.json()) as { id?: string; wamid?: string };
 
-    // Update message with success
     await this.prisma.db.message.update({
       where: { id: messageId },
       data: {
         status: 'SENT',
-        waMessageId: waMessageId ?? null,
+        waMessageId: result.wamid ?? result.id ?? null,
         sentAt: new Date(),
       },
     });
 
-    this.logger.debug(`Message ${messageId} sent: ${waMessageId}`);
+    this.logger.debug(`Message ${messageId} sent via YCloud`);
   }
 
   private buildMessageBody(
@@ -80,14 +76,9 @@ export class MessageSendProcessor extends WorkerHost {
     content: string | null,
     mediaUrl: string | null,
   ): Record<string, unknown> {
-    const base = {
-      messaging_product: 'whatsapp',
-      to,
-    };
+    const base = { from: this.fromNumber, to };
 
     switch (type) {
-      case 'text':
-        return { ...base, type: 'text', text: { body: content } };
       case 'image':
         return {
           ...base,
