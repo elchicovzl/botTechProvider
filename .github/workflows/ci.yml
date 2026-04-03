@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, Typecheck & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: arcmessagebot_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d arcmessagebot_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/arcmessagebot_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-jwt-secret-minimum-16-chars
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-minimum-16-chars
+      TOKEN_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      META_APP_ID: test-meta-app-id
+      META_APP_SECRET: test-meta-app-secret
+      META_WEBHOOK_VERIFY_TOKEN: test-webhook-verify-token
+      OLLAMA_BASE_URL: http://localhost:11434
+      OLLAMA_CHAT_MODEL: gemma4:31b
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: test-bucket
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_REGION: us-east-1
+      ADMIN_QUEUE_USER: admin
+      ADMIN_QUEUE_PASS: admin
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: pnpm exec prisma generate
+
+      - name: Run Prisma migrations
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
+
+      - name: Typecheck
+        run: pnpm turbo typecheck
+
+      # Tests will be added as modules are built
+      # - name: Test
+      #   run: pnpm turbo test

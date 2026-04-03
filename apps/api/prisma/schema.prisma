@@ -1,0 +1,281 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  AGENT
+}
+
+enum TenantStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum PhoneVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum ConversationStatus {
+  OPEN
+  BOT
+  RESOLVED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  AUDIO
+  VIDEO
+  STICKER
+  LOCATION
+  INTERACTIVE
+  TEMPLATE
+  UNKNOWN
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum DocumentStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+// ─────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────
+
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  status    TenantStatus @default(ONBOARDING)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  users          User[]
+  whatsappConfig WhatsAppConfig?
+  conversations  Conversation[]
+  messages       Message[]
+  bots           Bot[]
+  documents      Document[]
+  documentChunks DocumentChunk[]
+  auditLogs      AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  email        String
+  passwordHash String   @map("password_hash")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  role         UserRole @default(ADMIN)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model WhatsAppConfig {
+  id                      String                  @id @default(cuid())
+  tenantId                String                  @unique @map("tenant_id")
+  wabaId                  String                  @map("waba_id")
+  phoneNumberId           String                  @map("phone_number_id")
+  displayPhoneNumber      String?                 @map("display_phone_number")
+  encryptedSystemToken    String                  @map("encrypted_system_token")
+  tokenIv                 String                  @map("token_iv")
+  tokenAuthTag            String                  @map("token_auth_tag")
+  phoneVerificationStatus PhoneVerificationStatus @default(PENDING) @map("phone_verification_status")
+  webhookVerifyToken      String                  @map("webhook_verify_token")
+  isActive                Boolean                 @default(false) @map("is_active")
+  connectedAt             DateTime?               @map("connected_at")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([wabaId])
+  @@index([phoneNumberId])
+  @@map("whatsapp_configs")
+}
+
+model Conversation {
+  id                     String             @id @default(cuid())
+  tenantId               String             @map("tenant_id")
+  waContactId            String             @map("wa_contact_id")
+  waContactPhone         String             @map("wa_contact_phone")
+  waContactName          String?            @map("wa_contact_name")
+  status                 ConversationStatus @default(OPEN)
+  botId                  String?            @map("bot_id")
+  sessionWindowExpiresAt DateTime?          @map("session_window_expires_at")
+  lastInboundAt          DateTime?          @map("last_inbound_at")
+  resolvedAt             DateTime?          @map("resolved_at")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bot      Bot?      @relation(fields: [botId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@unique([tenantId, waContactId])
+  @@index([tenantId, status])
+  @@index([tenantId, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  tenantId       String           @map("tenant_id")
+  conversationId String           @map("conversation_id")
+  waMessageId    String?          @unique @map("wa_message_id")
+  direction      MessageDirection
+  type           MessageType      @default(TEXT)
+  content        String?
+  mediaUrl       String?          @map("media_url")
+  status         MessageStatus    @default(PENDING)
+  metadata       Json?
+  sentAt         DateTime?        @map("sent_at")
+  deliveredAt    DateTime?        @map("delivered_at")
+  readAt         DateTime?        @map("read_at")
+  failedReason   String?          @map("failed_reason")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, createdAt])
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model Bot {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  name             String
+  systemPrompt     String    @map("system_prompt") @db.Text
+  isActive         Boolean   @default(false) @map("is_active")
+  noMatchBehavior  String    @default("DECLINE") @map("no_match_behavior")
+  maxContextChunks Int       @default(5) @map("max_context_chunks")
+  temperature      Float     @default(0.3)
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  documents      Document[]
+  documentChunks DocumentChunk[]
+
+  @@index([tenantId])
+  @@map("bots")
+}
+
+model Document {
+  id         String         @id @default(cuid())
+  tenantId   String         @map("tenant_id")
+  botId      String         @map("bot_id")
+  filename   String
+  mimeType   String         @map("mime_type")
+  sizeBytes  Int            @map("size_bytes")
+  s3Key      String         @map("s3_key")
+  status     DocumentStatus @default(UPLOADING)
+  error      String?
+  chunkCount Int?           @map("chunk_count")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bot    Bot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  chunks DocumentChunk[]
+
+  @@index([tenantId, botId])
+  @@index([status])
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String                      @id @default(cuid())
+  tenantId   String                      @map("tenant_id")
+  botId      String                      @map("bot_id")
+  documentId String                      @map("document_id")
+  content    String                      @db.Text
+  tokenCount Int                         @map("token_count")
+  chunkIndex Int                         @map("chunk_index")
+  embedding  Unsupported("vector(768)")
+  metadata   Json?
+  createdAt  DateTime                    @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bot      Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, botId])
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String?  @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
