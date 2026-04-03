@@ -1,10 +1,11 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import * as express from 'express';
+import { urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    rawBody: true, // CRITICAL: Required for Meta webhook signature verification
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true, // CRITICAL: Required for webhook signature verification
   });
 
   app.enableCors({
@@ -12,9 +13,8 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Enable URL-encoded body parsing for Twilio webhooks (form-encoded POST).
-  // NestJS enables JSON body parsing globally by default but NOT urlencoded.
-  app.use('/webhooks', express.urlencoded({ extended: true }));
+  // Enable URL-encoded body parsing for Twilio webhooks (form-encoded POST)
+  app.use('/webhooks', urlencoded({ extended: true }));
 
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
