@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma';
 import { RetrievalService } from '../rag';
@@ -14,6 +14,7 @@ export class BotEngineService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly retrievalService: RetrievalService,
+    @Inject(forwardRef(() => WhatsAppSenderService))
     private readonly senderService: WhatsAppSenderService,
   ) {
     this.ollamaBaseUrl = this.configService.getOrThrow('OLLAMA_BASE_URL');
