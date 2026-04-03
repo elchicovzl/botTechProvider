@@ -118,7 +118,7 @@ export function ConversationThread({
     SEND_MESSAGE_MUTATION,
   );
 
-  const messages = data?.messages?.edges ?? [];
+  const messages = [...(data?.messages?.edges ?? [])].reverse();
 
   // Scroll to bottom whenever messages load/update
   useEffect(() => {
