@@ -107,6 +107,7 @@ export function ConversationThread({
   const { data, loading, refetch } = useQuery<MessagesData>(MESSAGES_QUERY, {
     variables: { conversationId, first: 50 },
     fetchPolicy: 'cache-and-network',
+    pollInterval: 3000, // Poll every 3 seconds for new messages
   });
 
   const [updateStatus, { loading: updating }] = useMutation<UpdateStatusData>(

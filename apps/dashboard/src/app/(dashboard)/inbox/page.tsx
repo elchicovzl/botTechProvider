@@ -89,6 +89,7 @@ export default function InboxPage() {
       search: search || undefined,
     },
     fetchPolicy: 'cache-and-network',
+    pollInterval: 5000, // Poll every 5 seconds for new conversations
   });
 
   const conversations = data?.conversations?.edges ?? [];
