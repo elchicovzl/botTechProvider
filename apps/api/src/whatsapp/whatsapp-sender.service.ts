@@ -25,11 +25,11 @@ export class WhatsAppSenderService {
     private readonly configService: ConfigService,
     @InjectQueue(QUEUES.MESSAGE_SEND) private readonly sendQueue: Queue,
   ) {
-    this.fromNumber = this.configService.getOrThrow('YCLOUD_FROM_NUMBER');
+    this.fromNumber = this.configService.getOrThrow('TWILIO_WHATSAPP_NUMBER');
   }
 
   /**
-   * Queue a message for sending via WhatsApp (YCloud BSP).
+   * Queue a message for sending via WhatsApp (Twilio BSP).
    * Checks session window before queuing.
    */
   async queueMessage(
@@ -70,7 +70,7 @@ export class WhatsAppSenderService {
       },
     });
 
-    // Enqueue for sending — phoneNumberId carries the YCloud from-number for traceability
+    // Enqueue for sending — phoneNumberId carries the Twilio from-number for traceability
     await this.sendQueue.add(
       'send-message',
       {

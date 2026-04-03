@@ -1,2 +1,2 @@
 export { MetaSignatureGuard } from './meta-signature.guard';
-export { YCloudSignatureGuard } from './ycloud-signature.guard';
+export { TwilioSignatureGuard } from './twilio-signature.guard';

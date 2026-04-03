@@ -129,4 +129,22 @@ export class WhatsAppConfigService {
       where: { phoneNumberId },
     });
   }
+
+  /**
+   * Find tenant by WhatsApp phone number.
+   * Used in Twilio webhook processing to map the destination number to a tenant.
+   * Accepts the number with or without the "whatsapp:" prefix and the leading "+".
+   */
+  async findByPhoneNumber(phone: string) {
+    const normalized = phone.replace('whatsapp:', '').replace('+', '');
+    return this.prisma.db.whatsAppConfig.findFirst({
+      where: {
+        OR: [
+          { displayPhoneNumber: { contains: normalized } },
+          { phoneNumberId: { contains: normalized } },
+        ],
+      },
+      include: { tenant: true },
+    });
+  }
 }

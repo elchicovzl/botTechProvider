@@ -23,10 +23,10 @@ export const envSchema = z.object({
   META_APP_SECRET: z.string().min(1).optional().default(''),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional().default(''),
 
-  // YCloud BSP
-  YCLOUD_API_KEY: z.string().min(1),
-  YCLOUD_WEBHOOK_SECRET: z.string().min(1),
-  YCLOUD_FROM_NUMBER: z.string().min(1),
+  // Twilio BSP
+  TWILIO_ACCOUNT_SID: z.string().min(1),
+  TWILIO_AUTH_TOKEN: z.string().min(1),
+  TWILIO_WHATSAPP_NUMBER: z.string().min(1), // e.g. +14155238886 (sandbox)
 
   // Ollama
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),

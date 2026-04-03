@@ -8,14 +8,12 @@ import { SendMessageData } from '../whatsapp-sender.service';
 
 @Processor(QUEUES.MESSAGE_SEND, {
   concurrency: 10,
-  limiter: {
-    max: 80,
-    duration: 1000,
-  },
+  limiter: { max: 80, duration: 1000 },
 })
 export class MessageSendProcessor extends WorkerHost {
   private readonly logger = new Logger(MessageSendProcessor.name);
-  private readonly apiKey: string;
+  private readonly accountSid: string;
+  private readonly authToken: string;
   private readonly fromNumber: string;
 
   constructor(
@@ -23,22 +21,32 @@ export class MessageSendProcessor extends WorkerHost {
     private readonly configService: ConfigService,
   ) {
     super();
-    this.apiKey = this.configService.getOrThrow('YCLOUD_API_KEY');
-    this.fromNumber = this.configService.getOrThrow('YCLOUD_FROM_NUMBER');
+    this.accountSid = this.configService.getOrThrow('TWILIO_ACCOUNT_SID');
+    this.authToken = this.configService.getOrThrow('TWILIO_AUTH_TOKEN');
+    this.fromNumber = this.configService.getOrThrow('TWILIO_WHATSAPP_NUMBER');
   }
 
   async process(job: Job<SendMessageData>): Promise<void> {
-    const { messageId, recipientPhone, type, content, mediaUrl } = job.data;
+    const { messageId, recipientPhone, content, mediaUrl } = job.data;
 
-    const body = this.buildMessageBody(recipientPhone, type, content, mediaUrl);
+    const params = new URLSearchParams();
+    params.append('From', `whatsapp:${this.fromNumber}`);
+    params.append('To', `whatsapp:${recipientPhone}`);
+    if (content) params.append('Body', content);
+    if (mediaUrl) params.append('MediaUrl', mediaUrl);
 
-    const response = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
+    const auth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString(
+      'base64',
+    );
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'X-API-Key': this.apiKey,
-        'Content-Type': 'application/json',
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify(body),
+      body: params.toString(),
     });
 
     if (!response.ok) {
@@ -53,46 +61,22 @@ export class MessageSendProcessor extends WorkerHost {
         });
       }
 
-      throw new Error(`YCloud API error ${status}: ${error}`);
+      throw new Error(`Twilio API error ${status}: ${error}`);
     }
 
-    const result = (await response.json()) as { id?: string; wamid?: string };
+    const result = (await response.json()) as { sid?: string };
 
     await this.prisma.db.message.update({
       where: { id: messageId },
       data: {
         status: 'SENT',
-        waMessageId: result.wamid ?? result.id ?? null,
+        waMessageId: result.sid ?? null,
         sentAt: new Date(),
       },
     });
 
-    this.logger.debug(`Message ${messageId} sent via YCloud`);
-  }
-
-  private buildMessageBody(
-    to: string,
-    type: string,
-    content: string | null,
-    mediaUrl: string | null,
-  ): Record<string, unknown> {
-    const base = { from: this.fromNumber, to };
-
-    switch (type) {
-      case 'image':
-        return {
-          ...base,
-          type: 'image',
-          image: { link: mediaUrl, caption: content },
-        };
-      case 'document':
-        return {
-          ...base,
-          type: 'document',
-          document: { link: mediaUrl, caption: content },
-        };
-      default:
-        return { ...base, type: 'text', text: { body: content } };
-    }
+    this.logger.debug(
+      `Message ${messageId} sent via Twilio: ${result.sid ?? 'no-sid'}`,
+    );
   }
 }

@@ -5,14 +5,12 @@ import {
   Query,
   Body,
   HttpCode,
-  UseGuards,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Public } from '../common/decorators';
-import { YCloudSignatureGuard } from './guards/ycloud-signature.guard';
 import { QUEUES, JOB_OPTIONS } from '../queue';
 
 @Controller('webhooks')
@@ -28,7 +26,7 @@ export class WebhookController {
   }
 
   /**
-   * Meta webhook verification — kept for compatibility if switching back to Meta direct.
+   * Meta webhook verification — kept for future compatibility.
    * Must return hub.challenge to confirm subscription.
    */
   @Get('whatsapp')
@@ -42,43 +40,49 @@ export class WebhookController {
       this.logger.log('Webhook verified successfully');
       return challenge;
     }
-    this.logger.warn('Webhook verification failed');
-    return 'Verification failed';
+    return 'OK';
   }
 
   /**
-   * Receive webhook events from YCloud.
-   * Signature verified by YCloudSignatureGuard.
-   * Payload enqueued to BullMQ for async processing.
-   * Must return 200 quickly (YCloud requirement).
+   * Receive inbound messages and status updates from Twilio.
+   * Twilio sends application/x-www-form-urlencoded (NOT JSON).
+   * NestJS + Express parses this via the urlencoded middleware added in main.ts.
+   *
+   * Signature guard (TwilioSignatureGuard) is intentionally omitted here for
+   * sandbox / local testing (ngrok URL reconstruction is error-prone during dev).
+   * Re-enable @UseGuards(TwilioSignatureGuard) before deploying to production.
+   *
+   * Returns empty TwiML — no auto-reply, replies are sent asynchronously.
    */
   @Post('whatsapp')
   @Public()
-  @UseGuards(YCloudSignatureGuard)
   @HttpCode(200)
-  async receive(@Body() body: Record<string, any>): Promise<string> {
-    const eventType = body?.type;
+  async receive(@Body() body: Record<string, string>): Promise<string> {
+    const messageSid = body.MessageSid;
+    const from = body.From; // whatsapp:+573244033035
+    const messageBody = body.Body;
+    const messageStatus = body.MessageStatus;
 
-    if (eventType === 'whatsapp.inbound_message.received') {
-      const msg = body.whatsappInboundMessage;
-      if (msg) {
-        await this.webhookQueue.add(
-          'process-inbound',
-          { event: body, receivedAt: new Date().toISOString() },
-          JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
-        );
-      }
-    } else if (eventType === 'whatsapp.message.updated') {
-      const msg = body.whatsappMessage;
-      if (msg) {
-        await this.webhookQueue.add(
-          'process-status',
-          { event: body, receivedAt: new Date().toISOString() },
-          JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
-        );
-      }
+    if (messageSid && from && messageBody !== undefined) {
+      // Inbound message
+      this.logger.log(
+        `Inbound from ${from}: ${(messageBody ?? '').substring(0, 50)}`,
+      );
+      await this.webhookQueue.add(
+        'process-inbound',
+        { ...body, receivedAt: new Date().toISOString() },
+        JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
+      );
+    } else if (messageSid && messageStatus) {
+      // Status update (delivered, read, failed, etc.)
+      this.logger.debug(`Status update for ${messageSid}: ${messageStatus}`);
+      await this.webhookQueue.add(
+        'process-status',
+        { ...body, receivedAt: new Date().toISOString() },
+        JOB_OPTIONS[QUEUES.WEBHOOK_PROCESS],
+      );
     }
 
-    return 'EVENT_RECEIVED';
+    return '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
   }
 }
