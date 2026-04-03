@@ -11,17 +11,29 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@apollo/client": "^4.1.6",
+    "@arc/shared-types": "workspace:*",
+    "@hookform/resolvers": "^5.2.2",
+    "@tailwindcss/postcss": "^4.2.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "graphql": "^16.13.2",
+    "lucide-react": "^1.7.0",
     "next": "^15.3.3",
+    "postcss": "^8.5.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@arc/shared-types": "workspace:*"
+    "react-hook-form": "^7.72.1",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
-    "typescript": "^5.8.3",
     "eslint": "^9.27.0",
-    "eslint-config-next": "^15.3.3"
+    "eslint-config-next": "^15.3.3",
+    "typescript": "^5.8.3"
   }
 }

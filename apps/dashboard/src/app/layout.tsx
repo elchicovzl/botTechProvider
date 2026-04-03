@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import './globals.css';
+import { ApolloProvider } from '@/lib/apollo-provider';
 
 export const metadata: Metadata = {
   title: 'arcMessageBot',
@@ -12,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <ApolloProvider>{children}</ApolloProvider>
+      </body>
     </html>
   );
 }
