@@ -33,7 +33,7 @@ export const CONVERSATIONS_QUERY = gql`
 `;
 
 export const MESSAGES_QUERY = gql`
-  query Messages($conversationId: ID!, $first: Int, $before: String) {
+  query Messages($conversationId: String!, $first: Int, $before: String) {
     messages(conversationId: $conversationId, first: $first, before: $before) {
       edges {
         node {
@@ -61,7 +61,7 @@ export const MESSAGES_QUERY = gql`
 `;
 
 export const UPDATE_CONVERSATION_STATUS_MUTATION = gql`
-  mutation UpdateConversationStatus($conversationId: ID!, $status: String!, $botId: ID) {
+  mutation UpdateConversationStatus($conversationId: String!, $status: String!, $botId: String) {
     updateConversationStatus(conversationId: $conversationId, status: $status, botId: $botId) {
       id
       status
