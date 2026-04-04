@@ -6,7 +6,7 @@ import { CONVERSATIONS_QUERY } from '@/graphql/conversations';
 import { ConversationThread } from '@/components/conversation-thread';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Search, MessageSquare } from 'lucide-react';
+import { Search, MessageSquare, ArrowLeft } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -101,9 +101,14 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden rounded-lg border bg-background">
+    <div className="flex h-[calc(100vh-8rem)] gap-0 rounded-lg border overflow-hidden bg-background">
       {/* ══ Left Panel ═══════════════════════════════════════════════════════ */}
-      <div className="flex w-80 flex-shrink-0 flex-col border-r">
+      <div
+        className={cn(
+          'w-full md:w-80 md:border-r flex-shrink-0 flex flex-col',
+          selectedId ? 'hidden md:flex' : 'flex',
+        )}
+      >
         {/* Search */}
         <div className="border-b p-3">
           <div className="relative">
@@ -183,7 +188,21 @@ export default function InboxPage() {
       </div>
 
       {/* ══ Right Panel ══════════════════════════════════════════════════════ */}
-      <div className="flex flex-1 flex-col">
+      <div
+        className={cn(
+          'flex-1 flex flex-col',
+          selectedId ? 'flex' : 'hidden md:flex',
+        )}
+      >
+        {/* Back button on mobile */}
+        {selectedId && (
+          <button
+            onClick={() => setSelectedId(null)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground md:hidden border-b hover:bg-accent/50 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to conversations
+          </button>
+        )}
         {selectedConv ? (
           <ConversationThread
             conversationId={selectedConv.id}

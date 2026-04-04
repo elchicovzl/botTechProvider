@@ -20,7 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <main className="flex-1 overflow-auto bg-background">
         <ToastProvider>
-          <div className="mx-auto max-w-7xl p-6">{children}</div>
+          <div className="mx-auto max-w-7xl p-4 pl-14 md:p-6 md:pl-6">{children}</div>
         </ToastProvider>
       </main>
     </div>

@@ -137,7 +137,7 @@ export default function BotsPage() {
           <p className="text-sm text-muted-foreground">Create a bot to start automating replies</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {bots.map((bot) => (
             <Card key={bot.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between">

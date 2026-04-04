@@ -108,7 +108,7 @@ export default function SettingsPage() {
             <CardTitle>User Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label className="text-muted-foreground text-sm">First Name</Label>
                 <p className="font-medium mt-1">{me?.firstName ?? '—'}</p>
