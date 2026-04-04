@@ -8,6 +8,7 @@ import {
   SEND_MESSAGE_MUTATION,
 } from '@/graphql/conversations';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { CheckCheck, Check, Clock, AlertCircle } from 'lucide-react';
 
@@ -103,6 +104,7 @@ export function ConversationThread({
 }: ConversationThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [messageInput, setMessageInput] = useState('');
+  const { toast } = useToast();
 
   const { data, loading, refetch } = useQuery<MessagesData>(MESSAGES_QUERY, {
     variables: { conversationId, first: 50 },
@@ -112,7 +114,10 @@ export function ConversationThread({
 
   const [updateStatus, { loading: updating }] = useMutation<UpdateStatusData>(
     UPDATE_CONVERSATION_STATUS_MUTATION,
-    { refetchQueries: ['Conversations'] },
+    {
+      refetchQueries: ['Conversations'],
+      onCompleted: () => toast('Status updated', 'success'),
+    },
   );
 
   const [sendMessage, { loading: sendLoading }] = useMutation<SendMessageData>(
@@ -138,6 +143,7 @@ export function ConversationThread({
     await sendMessage({ variables: { conversationId, content: trimmed } });
     setMessageInput('');
     refetch();
+    toast('Message sent', 'success');
   };
 
   return (

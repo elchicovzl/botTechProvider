@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Upload, Trash2, FileText, Loader2, RefreshCw } from 'lucide-react';
 
@@ -94,6 +95,7 @@ export default function BotDetailPage() {
   const params = useParams();
   const router = useRouter();
   const botId = params.botId as string;
+  const { toast } = useToast();
 
   // ── Bot query ──
   const { data: botData, loading: botLoading } = useQuery<BotData>(BOT_QUERY, {
@@ -124,7 +126,10 @@ export default function BotDetailPage() {
   const [createUploadUrl] = useMutation<CreateUploadUrlData>(CREATE_DOCUMENT_UPLOAD_URL_MUTATION);
   const [confirmUpload] = useMutation(CONFIRM_DOCUMENT_UPLOAD_MUTATION);
   const [deleteDocument] = useMutation(DELETE_DOCUMENT_MUTATION, {
-    onCompleted: () => refetchDocs(),
+    onCompleted: () => {
+      refetchDocs();
+      toast('Document deleted', 'success');
+    },
   });
 
   // ── Edit state ──
@@ -160,6 +165,7 @@ export default function BotDetailPage() {
       },
     });
     setEditing(false);
+    toast('Bot updated!', 'success');
   }
 
   // ── Upload state ──
@@ -203,6 +209,7 @@ export default function BotDetailPage() {
 
       // 4. Refresh documents (polling will kick in if status is PROCESSING)
       await refetchDocs();
+      toast('Document uploaded — processing...', 'info');
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {

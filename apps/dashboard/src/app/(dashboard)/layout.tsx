@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated } from '@/lib/auth';
 import { Sidebar } from '@/components/sidebar';
+import { ToastProvider } from '@/components/ui/toast';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -18,7 +19,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex h-screen">
       <Sidebar />
       <main className="flex-1 overflow-auto bg-background">
-        <div className="mx-auto max-w-7xl p-6">{children}</div>
+        <ToastProvider>
+          <div className="mx-auto max-w-7xl p-6">{children}</div>
+        </ToastProvider>
       </main>
     </div>
   );

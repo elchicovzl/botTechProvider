@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useToast } from '@/components/ui/toast';
 import { Loader2, Plus, X } from 'lucide-react';
 
 interface Bot {
@@ -28,15 +29,27 @@ interface BotsData {
 }
 
 export default function BotsPage() {
+  const { toast } = useToast();
   const { data, loading, refetch } = useQuery<BotsData>(BOTS_QUERY);
-  const [activateBot] = useMutation(ACTIVATE_BOT_MUTATION, { onCompleted: () => refetch() });
-  const [deactivateBot] = useMutation(DEACTIVATE_BOT_MUTATION, { onCompleted: () => refetch() });
+  const [activateBot] = useMutation(ACTIVATE_BOT_MUTATION, {
+    onCompleted: () => {
+      refetch();
+      toast('Bot activated!', 'success');
+    },
+  });
+  const [deactivateBot] = useMutation(DEACTIVATE_BOT_MUTATION, {
+    onCompleted: () => {
+      refetch();
+      toast('Bot deactivated', 'info');
+    },
+  });
   const [createBot, { loading: creating }] = useMutation(CREATE_BOT_MUTATION, {
     onCompleted: () => {
       refetch();
       setShowCreate(false);
       setNewName('');
       setNewSystemPrompt('');
+      toast('Bot created!', 'success');
     },
   });
 

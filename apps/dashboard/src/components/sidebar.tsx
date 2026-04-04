@@ -3,8 +3,19 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { MessageSquare, Bot, Settings, LogOut, MessageCircle } from 'lucide-react';
+import { useQuery } from '@apollo/client/react';
 import { cn } from '@/lib/utils';
 import { clearTokens } from '@/lib/auth';
+import { ME_QUERY } from '@/graphql/auth';
+
+interface MeData {
+  me: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+}
 
 const navItems = [
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
@@ -16,6 +27,7 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: userData } = useQuery<MeData>(ME_QUERY);
 
   const handleLogout = () => {
     clearTokens();
@@ -52,8 +64,16 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Logout */}
+      {/* User info + Logout */}
       <div className="border-t border-sidebar-border p-3">
+        {userData?.me && (
+          <div className="mb-2 px-3">
+            <p className="text-sm font-medium truncate">
+              {userData.me.firstName} {userData.me.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">{userData.me.email}</p>
+          </div>
+        )}
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
