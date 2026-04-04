@@ -72,9 +72,12 @@ export class AuthResolver {
 
   @Query(() => UserType)
   async me(@CurrentUser() user: JwtPayload): Promise<UserType> {
+    const dbUser = await this.authService.findUserById(user.sub);
     return {
       id: user.sub,
-      email: '', // Will be populated when we add user lookup
+      email: dbUser?.email ?? '',
+      firstName: dbUser?.firstName ?? null,
+      lastName: dbUser?.lastName ?? null,
       role: user.role,
       tenantId: user.tenantId,
     };

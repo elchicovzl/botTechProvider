@@ -56,6 +56,15 @@ export class AuthService {
   ) {}
 
   /**
+   * Find a user by ID — used for the `me` query.
+   */
+  async findUserById(userId: string) {
+    return this.prisma.db.user.findFirst({
+      where: { id: userId },
+    });
+  }
+
+  /**
    * Register a new user + tenant atomically.
    * Creates tenant first, then user, within a single transaction.
    */
