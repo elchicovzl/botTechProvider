@@ -18,6 +18,17 @@ export const MY_TENANT_QUERY = gql`
   }
 `;
 
+export const UPDATE_TENANT_MUTATION = gql`
+  mutation UpdateTenant($name: String!) {
+    updateTenant(name: $name) {
+      id
+      name
+      slug
+      status
+    }
+  }
+`;
+
 export const ACTIVATE_WHATSAPP_SANDBOX_MUTATION = gql`
   mutation ActivateWhatsAppSandbox {
     activateWhatsAppSandbox {
