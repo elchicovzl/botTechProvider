@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@apollo/client/react';
-import { CONVERSATIONS_QUERY } from '@/graphql/conversations';
+import { useQuery, useSubscription } from '@apollo/client/react';
+import { CONVERSATIONS_QUERY, CONVERSATION_UPDATED_SUBSCRIPTION } from '@/graphql/conversations';
+import { ME_QUERY } from '@/graphql/auth';
 import { ConversationThread } from '@/components/conversation-thread';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -82,14 +83,22 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, loading } = useQuery<ConversationsData>(CONVERSATIONS_QUERY, {
+  const { data: meData } = useQuery<{ me: { tenantId: string } }>(ME_QUERY);
+
+  const { data, loading, refetch } = useQuery<ConversationsData>(CONVERSATIONS_QUERY, {
     variables: {
       first: 50,
       status: activeStatus || undefined,
       search: search || undefined,
     },
     fetchPolicy: 'cache-and-network',
-    pollInterval: 5000, // Poll every 5 seconds for new conversations
+  });
+
+  // Real-time updates via subscription
+  useSubscription(CONVERSATION_UPDATED_SUBSCRIPTION, {
+    variables: { tenantId: meData?.me?.tenantId ?? '' },
+    skip: !meData?.me?.tenantId,
+    onData: () => refetch(),
   });
 
   const conversations = data?.conversations?.edges ?? [];

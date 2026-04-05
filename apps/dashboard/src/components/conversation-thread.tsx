@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import { useQuery, useMutation, useSubscription } from '@apollo/client/react';
 import {
   MESSAGES_QUERY,
   UPDATE_CONVERSATION_STATUS_MUTATION,
   SEND_MESSAGE_MUTATION,
+  MESSAGE_ADDED_SUBSCRIPTION,
 } from '@/graphql/conversations';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -109,7 +110,12 @@ export function ConversationThread({
   const { data, loading, refetch } = useQuery<MessagesData>(MESSAGES_QUERY, {
     variables: { conversationId, first: 50 },
     fetchPolicy: 'cache-and-network',
-    pollInterval: 3000, // Poll every 3 seconds for new messages
+  });
+
+  // Real-time updates via subscription
+  useSubscription(MESSAGE_ADDED_SUBSCRIPTION, {
+    variables: { conversationId },
+    onData: () => refetch(),
   });
 
   const [updateStatus, { loading: updating }] = useMutation<UpdateStatusData>(

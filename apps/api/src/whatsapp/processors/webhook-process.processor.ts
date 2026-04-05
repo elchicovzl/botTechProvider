@@ -1,10 +1,13 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger, forwardRef } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { PubSub } from 'graphql-subscriptions';
 import { PrismaService } from '../../prisma';
 import { WhatsAppConfigService } from '../whatsapp-config.service';
 import { QUEUES } from '../../queue';
 import { BotEngineService } from '../../bots';
+import { PUB_SUB } from '../../common/pubsub';
+import { MESSAGE_ADDED, CONVERSATION_UPDATED } from '../../conversations/conversations.resolver';
 
 interface TwilioInboundData {
   MessageSid: string;
@@ -37,6 +40,7 @@ export class WebhookProcessProcessor extends WorkerHost {
     private readonly whatsappConfig: WhatsAppConfigService,
     @Inject(forwardRef(() => BotEngineService))
     private readonly botEngine: BotEngineService,
+    @Inject(PUB_SUB) private readonly pubSub: PubSub,
   ) {
     super();
   }
@@ -170,7 +174,7 @@ export class WebhookProcessProcessor extends WorkerHost {
     }
 
     // Persist message
-    await this.prisma.db.message.create({
+    const message = await this.prisma.db.message.create({
       data: {
         tenantId,
         conversationId: conversation.id,
@@ -187,6 +191,21 @@ export class WebhookProcessProcessor extends WorkerHost {
     this.logger.debug(
       `Inbound message ${waMessageId} stored for tenant ${tenantId}`,
     );
+
+    // Publish real-time events
+    await this.pubSub.publish(MESSAGE_ADDED, {
+      messageAdded: message,
+      conversationId: conversation.id,
+    });
+    await this.pubSub.publish(CONVERSATION_UPDATED, {
+      conversationUpdated: {
+        ...conversation,
+        isSessionOpen: conversation.sessionWindowExpiresAt
+          ? conversation.sessionWindowExpiresAt > now
+          : false,
+      },
+      tenantId,
+    });
 
     // Trigger bot reply if conversation is in BOT mode
     if (conversation.status === 'BOT' && conversation.botId && content) {
@@ -221,9 +240,15 @@ export class WebhookProcessProcessor extends WorkerHost {
     if (data.MessageStatus === 'read') updateData.readAt = new Date();
 
     try {
-      await this.prisma.db.message.update({
+      const updatedMessage = await this.prisma.db.message.update({
         where: { waMessageId },
         data: updateData,
+      });
+
+      // Publish status update as a MESSAGE_ADDED event so subscribers stay in sync
+      await this.pubSub.publish(MESSAGE_ADDED, {
+        messageAdded: updatedMessage,
+        conversationId: updatedMessage.conversationId,
       });
     } catch {
       this.logger.debug(

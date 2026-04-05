@@ -1,10 +1,13 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
+import { PubSub } from 'graphql-subscriptions';
 import { PrismaService } from '../../prisma';
 import { QUEUES } from '../../queue';
 import { SendMessageData } from '../whatsapp-sender.service';
+import { PUB_SUB } from '../../common/pubsub';
+import { MESSAGE_ADDED } from '../../conversations/conversations.resolver';
 
 @Processor(QUEUES.MESSAGE_SEND, {
   concurrency: 10,
@@ -19,6 +22,7 @@ export class MessageSendProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    @Inject(PUB_SUB) private readonly pubSub: PubSub,
   ) {
     super();
     this.accountSid = this.configService.getOrThrow('TWILIO_ACCOUNT_SID');
@@ -66,7 +70,7 @@ export class MessageSendProcessor extends WorkerHost {
 
     const result = (await response.json()) as { sid?: string };
 
-    await this.prisma.db.message.update({
+    const updatedMessage = await this.prisma.db.message.update({
       where: { id: messageId },
       data: {
         status: 'SENT',
@@ -78,5 +82,11 @@ export class MessageSendProcessor extends WorkerHost {
     this.logger.debug(
       `Message ${messageId} sent via Twilio: ${result.sid ?? 'no-sid'}`,
     );
+
+    // Publish real-time event so subscribers see the SENT status immediately
+    await this.pubSub.publish(MESSAGE_ADDED, {
+      messageAdded: updatedMessage,
+      conversationId: updatedMessage.conversationId,
+    });
   }
 }

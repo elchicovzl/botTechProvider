@@ -7,9 +7,10 @@ import { WhatsAppConfigService } from './whatsapp-config.service';
 import { WebhookProcessProcessor, MessageSendProcessor } from './processors';
 import { WhatsAppSenderService } from './whatsapp-sender.service';
 import { BotsModule } from '../bots';
+import { PubSubModule } from '../common/pubsub';
 
 @Module({
-  imports: [ConfigModule, QueueModule, PrismaModule, forwardRef(() => BotsModule)],
+  imports: [ConfigModule, QueueModule, PrismaModule, forwardRef(() => BotsModule), PubSubModule],
   controllers: [WebhookController],
   providers: [
     WhatsAppConfigService,

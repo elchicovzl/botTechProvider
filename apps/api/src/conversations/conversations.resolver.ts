@@ -1,7 +1,10 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Int, Subscription } from '@nestjs/graphql';
+import { Inject } from '@nestjs/common';
+import { PubSub } from 'graphql-subscriptions';
 import { ConversationsService } from './conversations.service';
 import { WhatsAppSenderService } from '../whatsapp/whatsapp-sender.service';
 import { CurrentUser, JwtPayload } from '../common/decorators';
+import { PUB_SUB } from '../common/pubsub';
 import {
   ConversationConnectionType,
   ConversationType,
@@ -10,11 +13,15 @@ import {
   SendMessageInputType,
 } from './dto';
 
+export const MESSAGE_ADDED = 'MESSAGE_ADDED';
+export const CONVERSATION_UPDATED = 'CONVERSATION_UPDATED';
+
 @Resolver(() => ConversationType)
 export class ConversationsResolver {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly whatsappSender: WhatsAppSenderService,
+    @Inject(PUB_SUB) private readonly pubSub: PubSub,
   ) {}
 
   @Query(() => ConversationConnectionType)
@@ -67,12 +74,19 @@ export class ConversationsResolver {
       status,
       botId,
     );
-    return {
+    const result = {
       ...conv,
       isSessionOpen: conv.sessionWindowExpiresAt
         ? conv.sessionWindowExpiresAt > new Date()
         : false,
-    } as unknown as ConversationType;
+    };
+
+    await this.pubSub.publish(CONVERSATION_UPDATED, {
+      conversationUpdated: result,
+      tenantId: user.tenantId,
+    });
+
+    return result as unknown as ConversationType;
   }
 
   @Mutation(() => MessageType)
@@ -87,7 +101,31 @@ export class ConversationsResolver {
       content,
     );
     const message = await this.conversationsService.getMessageById(user.tenantId, result.messageId);
+
+    await this.pubSub.publish(MESSAGE_ADDED, {
+      messageAdded: message,
+      conversationId,
+    });
+
     return message as any;
+  }
+
+  @Subscription(() => MessageType, {
+    filter: (payload: any, variables: any) =>
+      payload.conversationId === variables.conversationId,
+    resolve: (payload: any) => payload.messageAdded,
+  })
+  messageAdded(@Args('conversationId') _conversationId: string) {
+    return this.pubSub.asyncIterableIterator(MESSAGE_ADDED);
+  }
+
+  @Subscription(() => ConversationType, {
+    filter: (payload: any, variables: any) =>
+      payload.tenantId === variables.tenantId,
+    resolve: (payload: any) => payload.conversationUpdated,
+  })
+  conversationUpdated(@Args('tenantId') _tenantId: string) {
+    return this.pubSub.asyncIterableIterator(CONVERSATION_UPDATED);
   }
 }
 

@@ -5,6 +5,7 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma';
 import { CryptoModule } from './common/crypto';
+import { PubSubModule } from './common/pubsub';
 import { JwtAuthGuard } from './common/guards';
 import { GlobalExceptionFilter } from './common/filters';
 import { TenantInterceptor } from './common/interceptors';
@@ -31,8 +32,39 @@ import { RagModule } from './rag';
       autoSchemaFile: true,
       sortSchema: true,
       playground: process.env.NODE_ENV !== 'production',
-      context: ({ req }: { req: Request }) => ({ req }),
+      subscriptions: {
+        'graphql-ws': {
+          onConnect: (context: any) => {
+            const { connectionParams } = context;
+            return {
+              req: {
+                headers: {
+                  authorization:
+                    connectionParams?.Authorization ||
+                    connectionParams?.authorization ||
+                    '',
+                },
+              },
+            };
+          },
+        },
+      },
+      context: ({ req, connectionParams }: any) => {
+        if (req) return { req };
+        // WebSocket connection — build a fake req from connectionParams
+        return {
+          req: {
+            headers: {
+              authorization:
+                connectionParams?.Authorization ||
+                connectionParams?.authorization ||
+                '',
+            },
+          },
+        };
+      },
     }),
+    PubSubModule,
     PrismaModule,
     CryptoModule,
     AuthModule,
