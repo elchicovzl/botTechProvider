@@ -34,4 +34,10 @@ export class TenantType {
 
   @Field()
   createdAt!: Date;
+
+  @Field(() => String, { nullable: true })
+  widgetApiKey?: string | null;
+
+  @Field(() => [String])
+  allowedOrigins!: string[];
 }

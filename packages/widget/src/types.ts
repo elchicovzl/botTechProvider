@@ -4,6 +4,7 @@ export interface WidgetConfig {
   theme?: string;     // primary color (hex)
   position?: 'left' | 'right';
   greeting?: string;
+  apiKey?: string;
 }
 
 export interface Message {

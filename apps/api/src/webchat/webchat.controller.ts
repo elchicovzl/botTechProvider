@@ -8,8 +8,10 @@ import {
   Query,
   HttpCode,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { Observable, type Observer } from 'rxjs';
+import { Request } from 'express';
 import { Public } from '../common/decorators';
 import { WebChatService } from './webchat.service';
 import { WebChatThrottleGuard } from './guards/webchat-throttle.guard';
@@ -28,9 +30,17 @@ export class WebChatController {
   @Post('sessions')
   @HttpCode(200)
   async createSession(
-    @Body() body: { tenantSlug: string; visitorId: string; visitorName?: string },
+    @Body() body: { tenantSlug: string; visitorId: string; visitorName?: string; apiKey?: string },
+    @Req() req: Request,
   ) {
-    return this.webchatService.createSession(body.tenantSlug, body.visitorId, body.visitorName);
+    const origin = req.headers['origin'] as string | undefined;
+    return this.webchatService.createSession(
+      body.tenantSlug,
+      body.visitorId,
+      body.visitorName,
+      body.apiKey,
+      origin,
+    );
   }
 
   // ─── POST /api/webchat/sessions/:sessionToken/messages ───────────────────

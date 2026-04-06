@@ -31,6 +31,7 @@ function init(): void {
     theme: _script.dataset.theme,
     position: (_script.dataset.position as 'left' | 'right') || 'right',
     greeting: _script.dataset.greeting,
+    apiKey: _script.dataset.apiKey || undefined,
   };
 
   // Expose instance globally for programmatic control

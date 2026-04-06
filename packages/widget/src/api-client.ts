@@ -106,12 +106,13 @@ export class ApiClient {
     });
   }
 
-  async createSession(tenantSlug: string, visitorId: string): Promise<Session> {
+  async createSession(tenantSlug: string, visitorId: string, apiKey?: string): Promise<Session> {
     const { status, data } = await this.proxyFetch(
       'POST',
       `${this.baseUrl}/api/webchat/sessions`,
-      JSON.stringify({ tenantSlug, visitorId }),
+      JSON.stringify({ tenantSlug, visitorId, ...(apiKey ? { apiKey } : {}) }),
     );
+    if (status === 401) throw new Error('INVALID_API_KEY');
     if (status >= 400) throw new Error(`Session creation failed: ${status}`);
     return JSON.parse(data) as Session;
   }

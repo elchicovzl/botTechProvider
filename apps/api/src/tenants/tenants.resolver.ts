@@ -7,15 +7,15 @@ import { TenantType } from './dto';
 export class TenantsResolver {
   constructor(private readonly tenantsService: TenantsService) {}
 
-  @Query(() => TenantType)
-  async myTenant(@CurrentUser() user: JwtPayload): Promise<TenantType> {
-    const tenant = await this.tenantsService.findById(user.tenantId);
+  private mapTenant(tenant: any): TenantType {
     return {
       id: tenant.id,
       name: tenant.name,
       slug: tenant.slug,
       status: tenant.status,
       createdAt: tenant.createdAt,
+      widgetApiKey: tenant.widgetApiKey ?? null,
+      allowedOrigins: tenant.allowedOrigins ?? [],
       whatsappConfig: tenant.whatsappConfig
         ? {
             isActive: tenant.whatsappConfig.isActive,
@@ -25,6 +25,12 @@ export class TenantsResolver {
           }
         : null,
     };
+  }
+
+  @Query(() => TenantType)
+  async myTenant(@CurrentUser() user: JwtPayload): Promise<TenantType> {
+    const tenant = await this.tenantsService.findById(user.tenantId);
+    return this.mapTenant(tenant);
   }
 
   @Mutation(() => TenantType)
@@ -33,21 +39,7 @@ export class TenantsResolver {
     @Args('name') name: string,
   ): Promise<TenantType> {
     const tenant = await this.tenantsService.update(user.tenantId, { name });
-    return {
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      status: tenant.status,
-      createdAt: tenant.createdAt,
-      whatsappConfig: tenant.whatsappConfig
-        ? {
-            isActive: tenant.whatsappConfig.isActive,
-            displayPhoneNumber: tenant.whatsappConfig.displayPhoneNumber,
-            phoneVerificationStatus: tenant.whatsappConfig.phoneVerificationStatus,
-            connectedAt: tenant.whatsappConfig.connectedAt,
-          }
-        : null,
-    };
+    return this.mapTenant(tenant);
   }
 
   @Mutation(() => TenantType)
@@ -55,20 +47,23 @@ export class TenantsResolver {
     @CurrentUser() user: JwtPayload,
   ): Promise<TenantType> {
     const tenant = await this.tenantsService.activateWhatsAppSandbox(user.tenantId);
-    return {
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      status: tenant.status,
-      createdAt: tenant.createdAt,
-      whatsappConfig: tenant.whatsappConfig
-        ? {
-            isActive: tenant.whatsappConfig.isActive,
-            displayPhoneNumber: tenant.whatsappConfig.displayPhoneNumber,
-            phoneVerificationStatus: tenant.whatsappConfig.phoneVerificationStatus,
-            connectedAt: tenant.whatsappConfig.connectedAt,
-          }
-        : null,
-    };
+    return this.mapTenant(tenant);
+  }
+
+  @Mutation(() => TenantType)
+  async generateWidgetApiKey(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<TenantType> {
+    const tenant = await this.tenantsService.generateWidgetApiKey(user.tenantId);
+    return this.mapTenant(tenant);
+  }
+
+  @Mutation(() => TenantType)
+  async updateAllowedOrigins(
+    @CurrentUser() user: JwtPayload,
+    @Args('origins', { type: () => [String] }) origins: string[],
+  ): Promise<TenantType> {
+    const tenant = await this.tenantsService.updateAllowedOrigins(user.tenantId, origins);
+    return this.mapTenant(tenant);
   }
 }

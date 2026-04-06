@@ -8,6 +8,8 @@ export const MY_TENANT_QUERY = gql`
       slug
       status
       createdAt
+      widgetApiKey
+      allowedOrigins
       whatsappConfig {
         isActive
         displayPhoneNumber
@@ -39,6 +41,26 @@ export const ACTIVATE_WHATSAPP_SANDBOX_MUTATION = gql`
         isActive
         displayPhoneNumber
       }
+    }
+  }
+`;
+
+export const GENERATE_WIDGET_API_KEY_MUTATION = gql`
+  mutation GenerateWidgetApiKey {
+    generateWidgetApiKey {
+      id
+      widgetApiKey
+      allowedOrigins
+    }
+  }
+`;
+
+export const UPDATE_ALLOWED_ORIGINS_MUTATION = gql`
+  mutation UpdateAllowedOrigins($origins: [String!]!) {
+    updateAllowedOrigins(origins: $origins) {
+      id
+      widgetApiKey
+      allowedOrigins
     }
   }
 `;

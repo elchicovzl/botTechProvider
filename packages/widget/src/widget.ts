@@ -64,7 +64,7 @@ export class Widget {
     this.setState(this.session ? 'RECONNECTING' : 'CONNECTING');
 
     try {
-      const session = await this.api.createSession(this.config.tenant, this.visitorId);
+      const session = await this.api.createSession(this.config.tenant, this.visitorId, this.config.apiKey);
       this.session = session;
       this.reconnectAttempts = 0;
 

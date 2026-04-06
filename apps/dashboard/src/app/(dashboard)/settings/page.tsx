@@ -3,7 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import Link from 'next/link';
-import { MY_TENANT_QUERY, UPDATE_TENANT_MUTATION } from '@/graphql/tenant';
+import {
+  MY_TENANT_QUERY,
+  UPDATE_TENANT_MUTATION,
+  GENERATE_WIDGET_API_KEY_MUTATION,
+  UPDATE_ALLOWED_ORIGINS_MUTATION,
+} from '@/graphql/tenant';
 import { ME_QUERY } from '@/graphql/auth';
 import { BOTS_QUERY } from '@/graphql/bots';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -27,6 +32,8 @@ interface Tenant {
   slug: string;
   status: string;
   createdAt: string;
+  widgetApiKey: string | null;
+  allowedOrigins: string[];
   whatsappConfig: WhatsappConfig | null;
 }
 
@@ -69,16 +76,77 @@ export default function SettingsPage() {
   const activeBot = bots.find((b) => b.isActive) ?? null;
 
   const [companyName, setCompanyName] = useState('');
+  const [origins, setOrigins] = useState<string[]>([]);
+  const [newOrigin, setNewOrigin] = useState('');
+  const [originError, setOriginError] = useState('');
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
 
   useEffect(() => {
     if (tenant?.name) setCompanyName(tenant.name);
   }, [tenant?.name]);
+
+  useEffect(() => {
+    if (tenant?.allowedOrigins) setOrigins(tenant.allowedOrigins);
+  }, [tenant?.allowedOrigins]);
 
   const [updateTenant, { loading: saving }] = useMutation(UPDATE_TENANT_MUTATION, {
     onCompleted: () => toast('Company name updated', 'success'),
     onError: (err) => toast(err.message, 'error'),
     refetchQueries: [{ query: MY_TENANT_QUERY }],
   });
+
+  const [generateKey, { loading: generatingKey }] = useMutation(GENERATE_WIDGET_API_KEY_MUTATION, {
+    onCompleted: () => toast('API key generated', 'success'),
+    onError: (err) => toast(err.message, 'error'),
+    refetchQueries: [{ query: MY_TENANT_QUERY }],
+  });
+
+  const [updateOrigins, { loading: savingOrigins }] = useMutation(UPDATE_ALLOWED_ORIGINS_MUTATION, {
+    onCompleted: () => toast('Allowed origins updated', 'success'),
+    onError: (err) => toast(err.message, 'error'),
+    refetchQueries: [{ query: MY_TENANT_QUERY }],
+  });
+
+  const handleGenerateKey = () => {
+    if (tenant?.widgetApiKey && !showRegenConfirm) {
+      setShowRegenConfirm(true);
+      return;
+    }
+    setShowRegenConfirm(false);
+    generateKey();
+  };
+
+  const handleAddOrigin = () => {
+    const trimmed = newOrigin.trim();
+    if (!trimmed) return;
+    try {
+      const normalized = new URL(trimmed).origin;
+      if (origins.includes(normalized)) {
+        setOriginError('Origin already added');
+        return;
+      }
+      setOrigins([...origins, normalized]);
+      setNewOrigin('');
+      setOriginError('');
+    } catch {
+      setOriginError('Invalid URL (e.g., https://example.com)');
+    }
+  };
+
+  const handleRemoveOrigin = (origin: string) => {
+    setOrigins(origins.filter((o) => o !== origin));
+  };
+
+  const handleSaveOrigins = () => {
+    updateOrigins({ variables: { origins } });
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast('Copied to clipboard', 'success'),
+      () => toast('Failed to copy', 'error'),
+    );
+  };
 
   const handleSaveName = () => {
     const trimmed = companyName.trim();
@@ -250,6 +318,146 @@ export default function SettingsPage() {
             <Link href="/bots" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
               Manage bots
             </Link>
+          </CardContent>
+        </Card>
+
+        {/* ── Section 5: Widget Security ──────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Widget Security</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* API Key */}
+            <div className="space-y-2">
+              <Label className="text-muted-foreground text-sm">API Key</Label>
+              {tenant?.widgetApiKey ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={tenant.widgetApiKey}
+                      readOnly
+                      className="flex-1 font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopy(tenant.widgetApiKey!)}
+                    >
+                      Copy
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={generatingKey}
+                      onClick={handleGenerateKey}
+                    >
+                      {generatingKey ? 'Generating…' : 'Regenerate'}
+                    </Button>
+                  </div>
+                  {showRegenConfirm && (
+                    <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+                      <p className="font-medium">Are you sure?</p>
+                      <p className="text-xs mt-1">This will immediately invalidate the current key. All existing widget embeds will stop working until updated.</p>
+                      <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="destructive" disabled={generatingKey} onClick={() => { setShowRegenConfirm(false); generateKey(); }}>
+                          {generatingKey ? 'Generating…' : 'Yes, regenerate'}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setShowRegenConfirm(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    No API key generated yet. Without a key, anyone can embed your widget.
+                  </p>
+                  <Button size="sm" disabled={generatingKey} onClick={handleGenerateKey}>
+                    {generatingKey ? 'Generating…' : 'Generate API Key'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Allowed Origins */}
+            <div className="space-y-2">
+              <Label className="text-muted-foreground text-sm">Allowed Origins</Label>
+              {origins.length === 0 && (
+                <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-700">
+                  Your widget accepts requests from any domain. Add allowed origins for better security.
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={newOrigin}
+                  onChange={(e) => { setNewOrigin(e.target.value); setOriginError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddOrigin()}
+                  placeholder="https://example.com"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="sm" onClick={handleAddOrigin}>
+                  Add
+                </Button>
+              </div>
+              {originError && (
+                <p className="text-xs text-red-600">{originError}</p>
+              )}
+              {origins.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {origins.map((origin) => (
+                    <span
+                      key={origin}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700"
+                    >
+                      {origin}
+                      <button
+                        onClick={() => handleRemoveOrigin(origin)}
+                        className="ml-1 text-blue-500 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {origins.length > 0 && (
+                <Button
+                  size="sm"
+                  disabled={savingOrigins}
+                  onClick={handleSaveOrigins}
+                >
+                  {savingOrigins ? 'Saving…' : 'Save Origins'}
+                </Button>
+              )}
+            </div>
+
+            {/* Embed Snippet */}
+            <div className="space-y-2">
+              <Label className="text-muted-foreground text-sm">Embed Snippet</Label>
+              <div className="relative">
+                <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs font-mono whitespace-pre-wrap">
+{`<script
+  src="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/widget/v1/widget.min.js"
+  data-tenant="${tenant?.slug ?? 'your-slug'}"
+  data-api="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}"${tenant?.widgetApiKey ? `\n  data-api-key="${tenant.widgetApiKey}"` : ''}
+></script>`}
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 right-2"
+                  onClick={() =>
+                    handleCopy(
+                      `<script\n  src="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/widget/v1/widget.min.js"\n  data-tenant="${tenant?.slug ?? 'your-slug'}"\n  data-api="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}"${tenant?.widgetApiKey ? `\n  data-api-key="${tenant.widgetApiKey}"` : ''}\n></script>`,
+                    )
+                  }
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

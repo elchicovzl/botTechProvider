@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma';
 
 @Injectable()
@@ -30,6 +31,43 @@ export class TenantsService {
     return this.prisma.db.tenant.update({
       where: { id: tenantId },
       data: { status: 'ACTIVE' },
+    });
+  }
+
+  async generateWidgetApiKey(tenantId: string) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const key = `wk_${crypto.randomBytes(16).toString('hex')}`;
+      try {
+        return await this.prisma.db.tenant.update({
+          where: { id: tenantId },
+          data: { widgetApiKey: key },
+          include: { whatsappConfig: true },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002' && attempt < 2) continue; // unique collision, retry
+        throw err?.code === 'P2002'
+          ? new InternalServerErrorException('Failed to generate unique API key')
+          : err;
+      }
+    }
+    throw new InternalServerErrorException('Failed to generate unique API key');
+  }
+
+  async updateAllowedOrigins(tenantId: string, origins: string[]) {
+    const normalized = origins.map((o) => {
+      try {
+        return new URL(o).origin;
+      } catch {
+        throw new BadRequestException(`Invalid origin: "${o}". Must be a valid URL (e.g., https://example.com)`);
+      }
+    });
+
+    const unique = [...new Set(normalized)];
+
+    return this.prisma.db.tenant.update({
+      where: { id: tenantId },
+      data: { allowedOrigins: unique },
+      include: { whatsappConfig: true },
     });
   }
 

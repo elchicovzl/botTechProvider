@@ -30,6 +30,8 @@ export class WebChatService {
     tenantSlug: string,
     visitorId: string,
     visitorName?: string,
+    apiKey?: string,
+    origin?: string,
   ): Promise<{ sessionToken: string; conversationId: string }> {
     if (!tenantSlug || !visitorId) {
       throw new BadRequestException('tenantSlug and visitorId are required');
@@ -41,6 +43,32 @@ export class WebChatService {
     });
     if (!tenant) {
       throw new NotFoundException(`Tenant '${tenantSlug}' not found`);
+    }
+
+    // Validate API key
+    if (tenant.widgetApiKey !== null) {
+      if (!apiKey || apiKey !== tenant.widgetApiKey) {
+        throw new UnauthorizedException('Invalid or missing widget API key');
+      }
+    }
+
+    // Validate origin
+    if (tenant.allowedOrigins.length > 0 && origin) {
+      try {
+        const requestOrigin = new URL(origin).origin;
+        const isAllowed = (tenant.allowedOrigins as string[]).some(
+          (allowed) => {
+            try { return new URL(allowed).origin === requestOrigin; }
+            catch { return false; }
+          }
+        );
+        if (!isAllowed) {
+          throw new UnauthorizedException(`Origin not allowed`);
+        }
+      } catch (err) {
+        if (err instanceof UnauthorizedException) throw err;
+        throw new UnauthorizedException('Invalid Origin header');
+      }
     }
 
     // 2. Normalize visitorId
