@@ -54,10 +54,22 @@ export class ConversationType {
   id!: string;
 
   @Field()
-  waContactPhone!: string;
+  channel!: string;
+
+  @Field(() => String, { nullable: true })
+  waContactPhone?: string | null;
+
+  @Field(() => String, { nullable: true })
+  waContactId?: string | null;
 
   @Field(() => String, { nullable: true })
   waContactName?: string | null;
+
+  @Field(() => String, { nullable: true })
+  webVisitorId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  webContactName?: string | null;
 
   @Field(() => GqlConversationStatus)
   status!: GqlConversationStatus;

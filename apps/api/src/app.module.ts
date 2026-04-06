@@ -3,9 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma';
 import { CryptoModule } from './common/crypto';
 import { PubSubModule } from './common/pubsub';
+import { SenderModule } from './common/sender';
 import { JwtAuthGuard } from './common/guards';
 import { GlobalExceptionFilter } from './common/filters';
 import { TenantInterceptor } from './common/interceptors';
@@ -19,6 +21,7 @@ import { WhatsAppModule } from './whatsapp';
 import { ConversationsModule } from './conversations';
 import { BotsModule } from './bots';
 import { RagModule } from './rag';
+import { WebChatModule } from './webchat';
 
 @Module({
   imports: [
@@ -27,6 +30,7 @@ import { RagModule } from './rag';
       envFilePath: ['.env.local', '.env'],
       validate: validateEnv,
     }),
+    ScheduleModule.forRoot(),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
@@ -67,6 +71,7 @@ import { RagModule } from './rag';
     PubSubModule,
     PrismaModule,
     CryptoModule,
+    SenderModule,
     AuthModule,
     TenantsModule,
     QueueModule,
@@ -75,6 +80,7 @@ import { RagModule } from './rag';
     ConversationsModule,
     BotsModule,
     RagModule,
+    WebChatModule,
   ],
   controllers: [HealthController],
   providers: [

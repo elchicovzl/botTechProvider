@@ -2,7 +2,7 @@ import { Resolver, Query, Mutation, Args, Int, Subscription } from '@nestjs/grap
 import { Inject } from '@nestjs/common';
 import { PubSub } from 'graphql-subscriptions';
 import { ConversationsService } from './conversations.service';
-import { WhatsAppSenderService } from '../whatsapp/whatsapp-sender.service';
+import { SenderResolverService } from '../common/sender';
 import { CurrentUser, JwtPayload } from '../common/decorators';
 import { PUB_SUB } from '../common/pubsub';
 import {
@@ -20,7 +20,7 @@ export const CONVERSATION_UPDATED = 'CONVERSATION_UPDATED';
 export class ConversationsResolver {
   constructor(
     private readonly conversationsService: ConversationsService,
-    private readonly whatsappSender: WhatsAppSenderService,
+    private readonly senderResolver: SenderResolverService,
     @Inject(PUB_SUB) private readonly pubSub: PubSub,
   ) {}
 
@@ -76,9 +76,12 @@ export class ConversationsResolver {
     );
     const result = {
       ...conv,
-      isSessionOpen: conv.sessionWindowExpiresAt
-        ? conv.sessionWindowExpiresAt > new Date()
-        : false,
+      isSessionOpen:
+        conv.channel === 'WEB'
+          ? true
+          : conv.sessionWindowExpiresAt
+            ? conv.sessionWindowExpiresAt > new Date()
+            : false,
     };
 
     await this.pubSub.publish(CONVERSATION_UPDATED, {
@@ -95,11 +98,9 @@ export class ConversationsResolver {
     @Args('conversationId') conversationId: string,
     @Args('content') content: string,
   ): Promise<MessageType> {
-    const result = await this.whatsappSender.queueMessage(
-      user.tenantId,
-      conversationId,
-      content,
-    );
+    const conversation = await this.conversationsService.findById(user.tenantId, conversationId);
+    const sender = this.senderResolver.resolve(conversation.channel);
+    const result = await sender.queueMessage(user.tenantId, conversationId, content);
     const message = await this.conversationsService.getMessageById(user.tenantId, result.messageId);
 
     await this.pubSub.publish(MESSAGE_ADDED, {

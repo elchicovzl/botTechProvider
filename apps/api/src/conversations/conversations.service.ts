@@ -23,6 +23,8 @@ export class ConversationsService {
       where.OR = [
         { waContactPhone: { contains: search } },
         { waContactName: { contains: search, mode: 'insensitive' } },
+        { webContactName: { contains: search, mode: 'insensitive' } },
+        { webVisitorId: { contains: search } },
       ];
     }
 
@@ -53,9 +55,12 @@ export class ConversationsService {
       edges: edges.map((conv) => ({
         node: {
           ...conv,
-          isSessionOpen: conv.sessionWindowExpiresAt
-            ? conv.sessionWindowExpiresAt > new Date()
-            : false,
+          isSessionOpen:
+            conv.channel === 'WEB'
+              ? true
+              : conv.sessionWindowExpiresAt
+                ? conv.sessionWindowExpiresAt > new Date()
+                : false,
           lastMessage: conv.messages[0] ?? null,
         },
         cursor: conv.id,
@@ -77,9 +82,12 @@ export class ConversationsService {
     }
     return {
       ...conversation,
-      isSessionOpen: conversation.sessionWindowExpiresAt
-        ? conversation.sessionWindowExpiresAt > new Date()
-        : false,
+      isSessionOpen:
+        conversation.channel === 'WEB'
+          ? true
+          : conversation.sessionWindowExpiresAt
+            ? conversation.sessionWindowExpiresAt > new Date()
+            : false,
     };
   }
 

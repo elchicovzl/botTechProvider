@@ -6,8 +6,11 @@ export const CONVERSATIONS_QUERY = gql`
       edges {
         node {
           id
+          channel
           waContactPhone
           waContactName
+          webContactName
+          webVisitorId
           status
           isSessionOpen
           lastInboundAt
@@ -106,8 +109,11 @@ export const CONVERSATION_UPDATED_SUBSCRIPTION = gql`
   subscription ConversationUpdated($tenantId: String!) {
     conversationUpdated(tenantId: $tenantId) {
       id
+      channel
       waContactPhone
       waContactName
+      webContactName
+      webVisitorId
       status
       isSessionOpen
       lastInboundAt

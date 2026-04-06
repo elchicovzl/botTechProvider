@@ -7,7 +7,7 @@ import { ME_QUERY } from '@/graphql/auth';
 import { ConversationThread } from '@/components/conversation-thread';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Search, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Search, MessageSquare, ArrowLeft, Phone, Globe } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -21,8 +21,11 @@ interface LastMessage {
 
 interface ConversationNode {
   id: string;
-  waContactPhone: string;
+  channel: string;
+  waContactPhone: string | null;
   waContactName: string | null;
+  webContactName: string | null;
+  webVisitorId: string | null;
   status: string;
   isSessionOpen: boolean;
   lastInboundAt: string | null;
@@ -46,6 +49,12 @@ const STATUS_TABS = [
   { label: 'Open', value: 'OPEN' },
   { label: 'Bot', value: 'BOT' },
   { label: 'Resolved', value: 'RESOLVED' },
+] as const;
+
+const CHANNEL_TABS = [
+  { label: 'All', value: '' },
+  { label: 'WhatsApp', value: 'WHATSAPP' },
+  { label: 'Web', value: 'WEB' },
 ] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -80,6 +89,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function InboxPage() {
   const [activeStatus, setActiveStatus] = useState<string>('');
+  const [channelFilter, setChannelFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -103,10 +113,15 @@ export default function InboxPage() {
 
   const conversations = data?.conversations?.edges ?? [];
 
+  const filteredConversations = conversations.filter(({ node }) => {
+    if (channelFilter && node.channel !== channelFilter) return false;
+    return true;
+  });
+
   // Find the selected conversation node for passing props to the thread
   const selectedConv = useMemo(
-    () => conversations.find(({ node }) => node.id === selectedId)?.node ?? null,
-    [conversations, selectedId],
+    () => filteredConversations.find(({ node }) => node.id === selectedId)?.node ?? null,
+    [filteredConversations, selectedId],
   );
 
   return (
@@ -149,13 +164,31 @@ export default function InboxPage() {
           ))}
         </div>
 
+        {/* Channel filter tabs */}
+        <div className="flex border-b bg-muted/30">
+          {CHANNEL_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setChannelFilter(tab.value)}
+              className={cn(
+                'flex-1 py-1.5 text-xs font-medium transition-colors',
+                channelFilter === tab.value
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto">
-          {loading && conversations.length === 0 ? (
+          {loading && filteredConversations.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Loading…
             </div>
-          ) : conversations.length === 0 ? (
+          ) : filteredConversations.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-1 p-4 text-center">
               <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
               <p className="text-sm font-medium">No conversations</p>
@@ -164,7 +197,7 @@ export default function InboxPage() {
               </p>
             </div>
           ) : (
-            conversations.map(({ node: conv }) => (
+            filteredConversations.map(({ node: conv }) => (
               <button
                 key={conv.id}
                 onClick={() => setSelectedId(conv.id)}
@@ -174,9 +207,16 @@ export default function InboxPage() {
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-sm font-medium leading-tight">
-                    {conv.waContactName || conv.waContactPhone}
-                  </p>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {conv.channel === 'WHATSAPP' ? (
+                      <Phone className="h-3.5 w-3.5 flex-shrink-0 text-green-600" />
+                    ) : (
+                      <Globe className="h-3.5 w-3.5 flex-shrink-0 text-blue-600" />
+                    )}
+                    <p className="truncate text-sm font-medium leading-tight">
+                      {conv.waContactName ?? conv.webContactName ?? conv.waContactPhone ?? conv.webVisitorId ?? '—'}
+                    </p>
+                  </div>
                   <div className="flex flex-shrink-0 flex-col items-end gap-1">
                     <span className="text-[10px] text-muted-foreground">
                       {formatRelativeTime(conv.lastMessage?.createdAt ?? conv.updatedAt)}
@@ -215,10 +255,11 @@ export default function InboxPage() {
         {selectedConv ? (
           <ConversationThread
             conversationId={selectedConv.id}
-            contactName={selectedConv.waContactName}
-            contactPhone={selectedConv.waContactPhone}
+            contactName={selectedConv.waContactName ?? selectedConv.webContactName}
+            contactPhone={selectedConv.waContactPhone ?? selectedConv.webVisitorId ?? '—'}
             status={selectedConv.status}
             isSessionOpen={selectedConv.isSessionOpen}
+            channel={selectedConv.channel}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">

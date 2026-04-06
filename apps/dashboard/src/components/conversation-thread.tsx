@@ -62,6 +62,7 @@ interface ConversationThreadProps {
   contactPhone: string;
   status: string;
   isSessionOpen: boolean;
+  channel: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ export function ConversationThread({
   contactPhone,
   status,
   isSessionOpen,
+  channel,
 }: ConversationThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -260,7 +262,7 @@ export function ConversationThread({
       </div>
 
       {/* ── Footer ── */}
-      {isSessionOpen ? (
+      {(channel === 'WEB' || isSessionOpen) ? (
         <div className="border-t p-4 flex gap-2">
           <input
             value={messageInput}

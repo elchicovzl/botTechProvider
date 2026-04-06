@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma';
 import { QUEUES, JOB_OPTIONS } from '../queue';
+import { MessageSender } from '../common/interfaces/message-sender.interface';
 
 export interface SendMessageData {
   messageId: string;
@@ -17,7 +18,7 @@ export interface SendMessageData {
 }
 
 @Injectable()
-export class WhatsAppSenderService {
+export class WhatsAppSenderService implements MessageSender {
   private readonly fromNumber: string;
 
   constructor(
@@ -78,7 +79,7 @@ export class WhatsAppSenderService {
         tenantId,
         conversationId,
         phoneNumberId: this.fromNumber,
-        recipientPhone: conversation.waContactPhone,
+        recipientPhone: conversation.waContactPhone ?? '',
         type,
         content,
         mediaUrl,

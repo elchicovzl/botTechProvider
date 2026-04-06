@@ -1,8 +1,8 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma';
 import { RetrievalService } from '../rag';
-import { WhatsAppSenderService } from '../whatsapp';
+import { SenderResolverService } from '../common/sender';
 
 @Injectable()
 export class BotEngineService {
@@ -14,8 +14,7 @@ export class BotEngineService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly retrievalService: RetrievalService,
-    @Inject(forwardRef(() => WhatsAppSenderService))
-    private readonly senderService: WhatsAppSenderService,
+    private readonly senderResolver: SenderResolverService,
   ) {
     this.ollamaBaseUrl = this.configService.getOrThrow('OLLAMA_BASE_URL');
     this.chatModel = this.configService.getOrThrow('OLLAMA_CHAT_MODEL');
@@ -69,7 +68,8 @@ export class BotEngineService {
     // 4. Check if we have relevant context
     if (!context && bot.noMatchBehavior === 'DECLINE') {
       const fallbackMessage = 'No tengo información sobre eso. ¿Puedo ayudarte con algo más?';
-      await this.senderService.queueMessage(tenantId, conversationId, fallbackMessage);
+      const sender = this.senderResolver.resolve(conversation.channel);
+      await sender.queueMessage(tenantId, conversationId, fallbackMessage);
       return;
     }
 
@@ -91,7 +91,8 @@ export class BotEngineService {
     }
 
     // 7. Queue outbound message
-    await this.senderService.queueMessage(tenantId, conversationId, reply);
+    const sender = this.senderResolver.resolve(conversation.channel);
+    await sender.queueMessage(tenantId, conversationId, reply);
 
     this.logger.debug(
       `Bot reply generated for conversation ${conversationId} (${reply.length} chars)`,

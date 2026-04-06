@@ -66,6 +66,11 @@ enum DocumentStatus {
   FAILED
 }
 
+enum ConversationChannel {
+  WHATSAPP
+  WEB
+}
+
 // ─────────────────────────────────────────────
 // MODELS
 // ─────────────────────────────────────────────
@@ -148,25 +153,30 @@ model WhatsAppConfig {
 }
 
 model Conversation {
-  id                     String             @id @default(cuid())
-  tenantId               String             @map("tenant_id")
-  waContactId            String             @map("wa_contact_id")
-  waContactPhone         String             @map("wa_contact_phone")
-  waContactName          String?            @map("wa_contact_name")
-  status                 ConversationStatus @default(OPEN)
-  botId                  String?            @map("bot_id")
-  sessionWindowExpiresAt DateTime?          @map("session_window_expires_at")
-  lastInboundAt          DateTime?          @map("last_inbound_at")
-  resolvedAt             DateTime?          @map("resolved_at")
-  createdAt              DateTime           @default(now()) @map("created_at")
-  updatedAt              DateTime           @updatedAt @map("updated_at")
+  id                     String              @id @default(cuid())
+  tenantId               String              @map("tenant_id")
+  channel                ConversationChannel @default(WHATSAPP) @map("channel")
+  waContactId            String?             @map("wa_contact_id")
+  waContactPhone         String?             @map("wa_contact_phone")
+  waContactName          String?             @map("wa_contact_name")
+  webVisitorId           String?             @map("web_visitor_id")
+  webContactName         String?             @map("web_contact_name")
+  status                 ConversationStatus  @default(OPEN)
+  botId                  String?             @map("bot_id")
+  sessionWindowExpiresAt DateTime?           @map("session_window_expires_at")
+  lastInboundAt          DateTime?           @map("last_inbound_at")
+  resolvedAt             DateTime?           @map("resolved_at")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   bot      Bot?      @relation(fields: [botId], references: [id], onDelete: SetNull)
   messages Message[]
 
   @@unique([tenantId, waContactId])
+  @@unique([tenantId, webVisitorId])
   @@index([tenantId, status])
+  @@index([tenantId, channel])
   @@index([tenantId, updatedAt])
   @@map("conversations")
 }
