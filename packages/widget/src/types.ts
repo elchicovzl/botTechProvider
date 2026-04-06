@@ -1,10 +1,9 @@
 export interface WidgetConfig {
-  tenant: string;     // tenant slug
-  api: string;        // API base URL
-  theme?: string;     // primary color (hex)
+  apiKey: string;   // widget API key (wk_...)
+  api: string;      // API base URL (inferred from script src)
+  theme?: string;   // primary color (hex)
   position?: 'left' | 'right';
   greeting?: string;
-  apiKey?: string;
 }
 
 export interface Message {

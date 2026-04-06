@@ -436,27 +436,29 @@ export default function SettingsPage() {
             {/* Embed Snippet */}
             <div className="space-y-2">
               <Label className="text-muted-foreground text-sm">Embed Snippet</Label>
-              <div className="relative">
-                <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs font-mono whitespace-pre-wrap">
-{`<script
-  src="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/widget/v1/widget.min.js"
-  data-tenant="${tenant?.slug ?? 'your-slug'}"
-  data-api="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}"${tenant?.widgetApiKey ? `\n  data-api-key="${tenant.widgetApiKey}"` : ''}
-></script>`}
-                </pre>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="absolute top-2 right-2"
-                  onClick={() =>
-                    handleCopy(
-                      `<script\n  src="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/widget/v1/widget.min.js"\n  data-tenant="${tenant?.slug ?? 'your-slug'}"\n  data-api="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}"${tenant?.widgetApiKey ? `\n  data-api-key="${tenant.widgetApiKey}"` : ''}\n></script>`,
-                    )
-                  }
-                >
-                  Copy
-                </Button>
-              </div>
+              {tenant?.widgetApiKey ? (
+                (() => {
+                  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/graphql$/, '');
+                  const snippet = `<script src="${apiBase}/widget/v1/widget.min.js" data-key="${tenant.widgetApiKey}"></script>`;
+                  return (
+                    <div className="relative">
+                      <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-sm font-mono">
+                        {snippet}
+                      </pre>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={() => handleCopy(snippet)}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  );
+                })()
+              ) : (
+                <p className="text-sm text-muted-foreground">Generate an API key first to get your embed snippet.</p>
+              )}
             </div>
           </CardContent>
         </Card>

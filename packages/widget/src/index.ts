@@ -6,7 +6,6 @@ import { WidgetConfig } from './types';
 const _script = document.currentScript as HTMLScriptElement | null;
 
 function init(): void {
-  // Prevent double initialization
   if (document.getElementById('arc-webchat-root')) {
     console.warn('[ArcWebChat] Already initialized');
     return;
@@ -17,28 +16,27 @@ function init(): void {
     return;
   }
 
-  const tenant = _script.dataset.tenant;
-  const api = _script.dataset.api;
-
-  if (!tenant || !api) {
-    console.error('[ArcWebChat] Missing required data-tenant or data-api attributes');
+  const apiKey = _script.dataset.key;
+  if (!apiKey) {
+    console.error('[ArcWebChat] Missing required data-key attribute');
     return;
   }
 
+  // Infer API base URL from the script's own src
+  const scriptUrl = new URL(_script.src);
+  const api = scriptUrl.origin;
+
   const config: WidgetConfig = {
-    tenant,
+    apiKey,
     api,
     theme: _script.dataset.theme,
     position: (_script.dataset.position as 'left' | 'right') || 'right',
     greeting: _script.dataset.greeting,
-    apiKey: _script.dataset.apiKey || undefined,
   };
 
-  // Expose instance globally for programmatic control
   (window as any).__arcWebChat = new Widget(config);
 }
 
-// Auto-init when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {

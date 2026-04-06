@@ -30,15 +30,14 @@ export class WebChatController {
   @Post('sessions')
   @HttpCode(200)
   async createSession(
-    @Body() body: { tenantSlug: string; visitorId: string; visitorName?: string; apiKey?: string },
+    @Body() body: { apiKey: string; visitorId: string; visitorName?: string },
     @Req() req: Request,
   ) {
     const origin = req.headers['origin'] as string | undefined;
     return this.webchatService.createSession(
-      body.tenantSlug,
+      body.apiKey,
       body.visitorId,
       body.visitorName,
-      body.apiKey,
       origin,
     );
   }

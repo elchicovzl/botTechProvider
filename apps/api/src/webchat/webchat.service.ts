@@ -1,7 +1,6 @@
 import {
   Injectable,
   Inject,
-  NotFoundException,
   UnauthorizedException,
   ConflictException,
   BadRequestException,
@@ -27,32 +26,24 @@ export class WebChatService {
   // ─── createSession ────────────────────────────────────────────────────────
 
   async createSession(
-    tenantSlug: string,
+    apiKey: string,
     visitorId: string,
     visitorName?: string,
-    apiKey?: string,
     origin?: string,
   ): Promise<{ sessionToken: string; conversationId: string }> {
-    if (!tenantSlug || !visitorId) {
-      throw new BadRequestException('tenantSlug and visitorId are required');
+    if (!apiKey || !visitorId) {
+      throw new BadRequestException('apiKey and visitorId are required');
     }
 
-    // 1. Find tenant by slug
+    // 1. Find tenant by API key
     const tenant = await this.prisma.db.tenant.findUnique({
-      where: { slug: tenantSlug },
+      where: { widgetApiKey: apiKey },
     });
     if (!tenant) {
-      throw new NotFoundException(`Tenant '${tenantSlug}' not found`);
+      throw new UnauthorizedException('Invalid widget API key');
     }
 
-    // Validate API key
-    if (tenant.widgetApiKey !== null) {
-      if (!apiKey || apiKey !== tenant.widgetApiKey) {
-        throw new UnauthorizedException('Invalid or missing widget API key');
-      }
-    }
-
-    // Validate origin
+    // 2. Validate origin
     if (tenant.allowedOrigins.length > 0 && origin) {
       try {
         const requestOrigin = new URL(origin).origin;
@@ -63,7 +54,7 @@ export class WebChatService {
           }
         );
         if (!isAllowed) {
-          throw new UnauthorizedException(`Origin not allowed`);
+          throw new UnauthorizedException('Origin not allowed');
         }
       } catch (err) {
         if (err instanceof UnauthorizedException) throw err;
