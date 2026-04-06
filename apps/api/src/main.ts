@@ -9,7 +9,17 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: (origin, callback) => {
+      // Allow any origin for webchat/widget (public, embeddable endpoints)
+      // Allow dashboard origins for GraphQL
+      const allowed = ['http://localhost:3000', 'http://localhost:3001'];
+      if (!origin || allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        // Allow all other origins (webchat widget can be embedded anywhere)
+        callback(null, true);
+      }
+    },
     credentials: true,
   });
 

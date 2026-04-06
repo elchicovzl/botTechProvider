@@ -1,6 +1,10 @@
 import { Widget } from './widget';
 import { WidgetConfig } from './types';
 
+// Capture script reference immediately — document.currentScript is only
+// available during synchronous execution, NOT inside event listeners.
+const _script = document.currentScript as HTMLScriptElement | null;
+
 function init(): void {
   // Prevent double initialization
   if (document.getElementById('arc-webchat-root')) {
@@ -8,15 +12,13 @@ function init(): void {
     return;
   }
 
-  // Read config from script tag data attributes
-  const script = document.currentScript as HTMLScriptElement | null;
-  if (!script) {
+  if (!_script) {
     console.error('[ArcWebChat] Cannot find script element');
     return;
   }
 
-  const tenant = script.dataset.tenant;
-  const api = script.dataset.api;
+  const tenant = _script.dataset.tenant;
+  const api = _script.dataset.api;
 
   if (!tenant || !api) {
     console.error('[ArcWebChat] Missing required data-tenant or data-api attributes');
@@ -26,9 +28,9 @@ function init(): void {
   const config: WidgetConfig = {
     tenant,
     api,
-    theme: script.dataset.theme,
-    position: (script.dataset.position as 'left' | 'right') || 'right',
-    greeting: script.dataset.greeting,
+    theme: _script.dataset.theme,
+    position: (_script.dataset.position as 'left' | 'right') || 'right',
+    greeting: _script.dataset.greeting,
   };
 
   // Expose instance globally for programmatic control

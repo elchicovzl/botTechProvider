@@ -10,9 +10,19 @@ export class WidgetController {
   @Header('Content-Type', 'application/javascript')
   @Header('Cache-Control', 'public, max-age=3600')
   serveWidget(@Res() res: Response) {
-    const filePath = join(process.cwd(), 'widget-dist', 'widget.min.js');
+    const filePath = join(process.cwd(), 'widget-dist', 'widget', 'v1', 'widget.min.js');
     res.sendFile(filePath, (err) => {
       if (err) res.status(404).json({ error: 'Widget not found' });
+    });
+  }
+
+  @Get('v1/proxy.html')
+  @Header('Content-Type', 'text/html')
+  @Header('Cache-Control', 'public, max-age=3600')
+  serveProxy(@Res() res: Response) {
+    const filePath = join(process.cwd(), 'widget-dist', 'widget', 'v1', 'proxy.html');
+    res.sendFile(filePath, (err) => {
+      if (err) res.status(404).json({ error: 'Proxy not found' });
     });
   }
 }

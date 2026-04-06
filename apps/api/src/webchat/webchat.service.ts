@@ -60,8 +60,11 @@ export class WebChatService {
         },
       },
       update: {
-        status: 'OPEN',
+        // Re-activate resolved conversations; keep BOT/OPEN as-is
+        status: bot ? 'BOT' : 'OPEN',
+        botId: bot?.id ?? null,
         webContactName: visitorName ?? undefined,
+        sessionWindowExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
         updatedAt: new Date(),
       },
       create: {
@@ -71,6 +74,7 @@ export class WebChatService {
         webContactName: visitorName ?? null,
         status: bot ? 'BOT' : 'OPEN',
         botId: bot?.id ?? null,
+        sessionWindowExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
       },
     });
 

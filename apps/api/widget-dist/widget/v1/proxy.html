@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><title>ArcWebChat Proxy</title></head>
+<body>
+<script>
+(function() {
+  var parent = window.parent;
+  var sources = {};
+
+  function reply(msg) {
+    msg.__arcProxy = true;
+    parent.postMessage(msg, '*');
+  }
+
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data || !data.__arcProxy) return;
+
+    if (data.type === 'FETCH') {
+      var opts = { method: data.method, headers: {} };
+      if (data.body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = data.body;
+      }
+      fetch(data.url, opts)
+        .then(function(res) {
+          return res.text().then(function(body) {
+            reply({ type: 'FETCH_RESPONSE', id: data.id, status: res.status, body: body });
+          });
+        })
+        .catch(function(err) {
+          reply({ type: 'FETCH_RESPONSE', id: data.id, error: err.message });
+        });
+    }
+
+    if (data.type === 'SSE_CONNECT') {
+      var es = new EventSource(data.url);
+      sources[data.id] = es;
+
+      es.onmessage = function(e) {
+        if (!e.data || e.data === '') return;
+        try {
+          var parsed = JSON.parse(e.data);
+          if (parsed.type === 'message' && parsed.message) {
+            reply({ type: 'SSE_EVENT', id: data.id, message: parsed.message });
+          }
+        } catch(ex) {}
+      };
+
+      es.onerror = function() {
+        reply({ type: 'SSE_ERROR', id: data.id });
+      };
+    }
+
+    if (data.type === 'SSE_DISCONNECT') {
+      if (sources[data.id]) {
+        sources[data.id].close();
+        delete sources[data.id];
+      }
+    }
+  });
+
+  reply({ type: 'PROXY_READY' });
+})();
+</script>
+</body>
+</html>
