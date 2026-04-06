@@ -31,6 +31,8 @@ export class WebChatService {
     visitorName?: string,
     origin?: string,
   ): Promise<{ sessionToken: string; conversationId: string }> {
+    this.logger.debug(`createSession called — apiKey: "${apiKey?.substring(0, 10)}...", visitorId: "${visitorId}"`);
+
     if (!apiKey || !visitorId) {
       throw new BadRequestException('apiKey and visitorId are required');
     }
@@ -39,6 +41,7 @@ export class WebChatService {
     const tenant = await this.prisma.db.tenant.findUnique({
       where: { widgetApiKey: apiKey },
     });
+    this.logger.debug(`Tenant lookup result: ${tenant ? tenant.slug : 'NOT FOUND'}`);
     if (!tenant) {
       throw new UnauthorizedException('Invalid widget API key');
     }
@@ -107,6 +110,7 @@ export class WebChatService {
     });
 
     // 7. Return
+    this.logger.debug(`Session created — token: ${sessionToken.substring(0, 8)}..., conv: ${conversation.id}`);
     return { sessionToken, conversationId: conversation.id };
   }
 

@@ -110,7 +110,7 @@ export class ApiClient {
     const { status, data } = await this.proxyFetch(
       'POST',
       `${this.baseUrl}/api/webchat/sessions`,
-      JSON.stringify({ apiKey, visitorId }),
+      JSON.stringify({ apiKey, visitorId, origin: window.location.origin }),
     );
     if (status === 401) throw new Error('INVALID_API_KEY');
     if (status >= 400) throw new Error(`Session creation failed: ${status}`);
